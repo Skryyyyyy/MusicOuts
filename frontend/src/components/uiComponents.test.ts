@@ -14,6 +14,8 @@ import { MixConsoleView } from "./views/MixConsoleView";
 import { GestureLabView } from "./views/GestureLabView";
 import { VisualStageView } from "./views/VisualStageView";
 import { DemixLabView } from "./views/DemixLabView";
+import { VirtualSynth } from "./VirtualSynth";
+import { StudioGuideModal } from "./StudioGuideModal";
 import { StemType, StemState, GestureState, TrackMetadata } from '../types';
 import { DEFAULT_GESTURE_STATE } from '../engine/gestureTracker';
 
@@ -102,7 +104,7 @@ describe('UI Studio Deck Components', () => {
         })
       );
 
-      expect(html).toContain('KILL SWITCH ACTIVE (DUAL FIST)');
+      expect(html).toContain('MASTER KILL SWITCH ENGAGED (DUAL FIST)');
     });
   });
 
@@ -275,6 +277,15 @@ describe('UI Studio Deck Components', () => {
           djFilterType: 'lowpass',
           isDucking: true,
           duckingReduction: 0.5,
+          hardwareInfo: {
+            device: 'cuda',
+            cuda_available: true,
+            device_name: 'NVIDIA RTX 2050',
+            vram_gb: 4,
+            device_count: 1,
+            cpu_threads: 12,
+            ram_gb: 16,
+          },
           onPlayToggle: vi.fn(),
           onStop: vi.fn(),
           onSeek: vi.fn(),
@@ -321,8 +332,8 @@ describe('UI Studio Deck Components', () => {
       expect(html).toContain('02 DRUMS [PERC]');
       expect(html).toContain('03 BASS [LOW-END]');
       expect(html).toContain('04 OTHER [SYNTH &amp; INST]');
-      expect(html).toContain('LEFT HAND HEIGHT &amp; PINCH');
-      expect(html).toContain('RIGHT HAND HEIGHT');
+      expect(html).toContain('CH 01 • STEREO BUS');
+      expect(html).toContain('CH 02 • STEREO BUS');
     });
   });
 
@@ -435,9 +446,24 @@ describe('UI Studio Deck Components', () => {
       );
 
       expect(html).toContain("Neural AI Demixer &amp; Media Ingestion Lab");
-      expect(html).toContain("Active Track Inspector");
+      expect(html).toContain("Track Analysis &amp; Stems");
       expect(html).toContain("Export Separated WAV Stems:");
       expect(html).toContain("Neon Cyber Anthem");
+    });
+    it("renders VirtualSynth with piano roll keys and instruments", () => {
+      const html = renderToString(React.createElement(VirtualSynth, { audioGraph: null }));
+      expect(html).toContain("Web Synth &amp; Live Piano Roll");
+      expect(html).toContain("Cyber Lead");
+      expect(html).toContain("Grand Piano");
+      expect(html).toContain("808 Bass");
+      expect(html).toContain("Warm Pad");
+    });
+
+    it("renders StudioGuideModal with quick guide and keyboard shortcuts", () => {
+      const html = renderToString(React.createElement(StudioGuideModal, { isOpen: true, onClose: vi.fn() }));
+      expect(html).toContain("MusicOuts Pro Studio • Quick Guide");
+      expect(html).toContain("5 Dedicated Studio Workspaces");
+      expect(html).toContain("Keyboard Shortcuts");
     });
   });
 });

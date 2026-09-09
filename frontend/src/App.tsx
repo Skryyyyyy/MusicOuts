@@ -7,6 +7,7 @@ import {
   ProcessStatus,
   TrackMetadata,
   StudioView,
+  HardwareInfo,
 } from "./types";
 import { AudioGraphEngine } from "./engine/audioGraph";
 import { GestureTracker, DEFAULT_GESTURE_STATE } from "./engine/gestureTracker";
@@ -17,6 +18,9 @@ import { MixConsoleView } from "./components/views/MixConsoleView";
 import { GestureLabView } from "./components/views/GestureLabView";
 import { VisualStageView } from "./components/views/VisualStageView";
 import { DemixLabView } from "./components/views/DemixLabView";
+import { StudioGuideModal } from "./components/StudioGuideModal";
+import { VirtualSynth } from "./components/VirtualSynth";
+import { ChevronDown, ChevronUp, Music } from "lucide-react";
 
 const INITIAL_STEM_STATES: Record<StemType, StemState> = {
   vocals: { volume: 0.85, muted: false, solo: false, pan: 0.0 },
@@ -28,6 +32,12 @@ const INITIAL_STEM_STATES: Record<StemType, StemState> = {
 export const App: React.FC = () => {
   // Navigation & Workspace View State
   const [currentView, setCurrentView] = useState<StudioView>("arrangement");
+  const [isGuideOpen, setIsGuideOpen] = useState<boolean>(false);
+  const [isFooterCollapsed, setIsFooterCollapsed] = useState<boolean>(false);
+  const [showSynth, setShowSynth] = useState<boolean>(false);
+
+  // Real Hardware Detection State
+  const [hardwareInfo, setHardwareInfo] = useState<HardwareInfo | null>(null);
 
   // Audio Engine & Gesture Tracker references
   const audioGraphRef = useRef<AudioGraphEngine | null>(null);
@@ -64,6 +74,20 @@ export const App: React.FC = () => {
     progress: 100,
     message: "Demucs HT Hybrid Transformer Ready",
   });
+
+  // Fetch real hardware info dynamically on startup
+  useEffect(() => {
+    fetch("/api/health")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && data.device_info) {
+          setHardwareInfo(data.device_info);
+        }
+      })
+      .catch((err) => {
+        console.warn("Hardware info detection note:", err);
+      });
+  }, []);
 
   // Initialize AudioGraphEngine and GestureTracker on mount
   useEffect(() => {
@@ -121,7 +145,7 @@ export const App: React.FC = () => {
       const audioGraph = audioGraphRef.current;
       if (!audioGraph) return;
 
-      // 1. Dual Fist Kill Switch
+      // 1. Dual Fist Kill Switch (with 350ms hold delay)
       if (state.isDualFist) {
         audioGraph.setMasterVolume(0.0, 0.02);
         return;
@@ -188,6 +212,7 @@ export const App: React.FC = () => {
         // Auto-start playback on ready so audio plays immediately!
         await audioGraph.play();
         setIsPlaying(true);
+        setCurrentView("arrangement");
       } catch (err) {
         console.error("Failed to load stems into Web Audio Graph:", err);
         setIsLoadingStems(false);
@@ -320,7 +345,6 @@ export const App: React.FC = () => {
   // Keyboard Shortcuts Navigation (1-5 for workspaces, Space for Play/Pause, L for Loop, Home for Reset)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ignore when focused in input or textarea
       if (
         document.activeElement?.tagName === "INPUT" ||
         document.activeElement?.tagName === "TEXTAREA"
@@ -386,7 +410,9 @@ export const App: React.FC = () => {
         duckingReduction={duckingReduction}
         audioGraph={audioGraphRef.current}
         currentView={currentView}
+        hardwareInfo={hardwareInfo}
         onViewChange={setCurrentView}
+        onOpenGuide={() => setIsGuideOpen(true)}
         onPlayToggle={handlePlayToggle}
         onStop={handleStop}
         onSeek={handleSeek}
@@ -400,7 +426,29 @@ export const App: React.FC = () => {
       {/* 2. Main Studio Workspace (Dedicated Page Views) */}
       <main className="flex-1 p-3 flex flex-col max-w-[1920px] w-full mx-auto overflow-hidden relative">
         {/* Page 1: Multi-track Arrangement Window */}
-        <div className={`flex-1 h-full min-h-[500px] flex flex-col ${currentView === "arrangement" ? "block" : "hidden"}`}>
+        <div className={`flex-1 h-full min-h-[500px] flex flex-col gap-2 ${currentView === "arrangement" ? "block" : "hidden"}`}>
+          <div className="flex items-center justify-between px-2">
+            <div className="flex items-center space-x-2 text-xs font-mono text-zinc-400">
+              <span className="text-zinc-200 font-bold">{trackMetadata ? trackMetadata.title : "No Project Audio Loaded"}</span>
+              {trackMetadata && <span className="text-[10px] px-1.5 py-0.2 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">120 BPM • 4/4 • A Minor</span>}
+            </div>
+            <button
+              onClick={() => setShowSynth(!showSynth)}
+              className={`px-2.5 py-1 rounded text-[10px] font-mono font-bold border transition-all flex items-center space-x-1.5 ${
+                showSynth
+                  ? "bg-cyan-600 text-white border-cyan-400 shadow-sm"
+                  : "bg-[#181920] text-zinc-400 border-[#262830] hover:text-white"
+              }`}
+            >
+              <Music className="w-3.5 h-3.5" />
+              <span>{showSynth ? "HIDE SYNTH PIANO ROLL" : "OPEN VIRTUAL SYNTH"}</span>
+            </button>
+          </div>
+
+          {showSynth && (
+            <VirtualSynth audioGraph={audioGraphRef.current} />
+          )}
+
           <ArrangementView
             audioGraph={audioGraphRef.current}
             trackMetadata={trackMetadata}
@@ -415,7 +463,7 @@ export const App: React.FC = () => {
             onStemMuteToggle={handleStemMuteToggle}
             onStemSoloToggle={handleStemSoloToggle}
             onStemPanChange={handleStemPanChange}
-            className="flex-1 h-full min-h-[500px]"
+            className="flex-1 min-h-[420px]"
           />
         </div>
 
@@ -469,6 +517,7 @@ export const App: React.FC = () => {
           <DemixLabView
             trackMetadata={trackMetadata}
             processStatus={processStatus}
+            hardwareInfo={hardwareInfo}
             onTrackLoaded={handleTrackLoaded}
             onStatusChange={setProcessStatus}
             className="flex-1 h-full min-h-[500px]"
@@ -476,32 +525,52 @@ export const App: React.FC = () => {
         </div>
       </main>
 
-      {/* 3. Studio Status Bar Footer */}
-      <footer className="h-6 border-t border-[#262830] bg-[#17181d] px-3 flex items-center justify-between text-[10px] font-mono text-zinc-400 select-none">
+      {/* 3. Studio Status Bar Footer (Collapsible) */}
+      <footer
+        className={`border-t border-[#262830] bg-[#17181d] px-3 flex items-center justify-between text-[10px] font-mono text-zinc-400 select-none transition-all ${
+          isFooterCollapsed ? "h-3 overflow-hidden py-0" : "h-6 py-0"
+        }`}
+      >
         <div className="flex items-center space-x-3">
-          <div className="flex items-center space-x-1.5">
-            <span
-              className={`w-1.5 h-1.5 rounded-full inline-block ${
-                processStatus.stage === "error" ? "bg-red-500" : "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]"
-              }`}
-            />
-            <span className="text-zinc-300">Demucs Engine: {processStatus.message}</span>
+          <button
+            onClick={() => setIsFooterCollapsed(!isFooterCollapsed)}
+            className="text-zinc-500 hover:text-white"
+            title={isFooterCollapsed ? "Expand Footer" : "Collapse Footer"}
+          >
+            {isFooterCollapsed ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+          </button>
+          {!isFooterCollapsed && (
+            <>
+              <div className="flex items-center space-x-1.5">
+                <span
+                  className={`w-1.5 h-1.5 rounded-full inline-block ${
+                    processStatus.stage === "error" ? "bg-red-500" : "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]"
+                  }`}
+                />
+                <span className="text-zinc-300">Demucs Engine: {processStatus.message}</span>
+              </div>
+              <span className="text-zinc-700">|</span>
+              <span>Web Audio DSP: 4-Track 64-bit Flow</span>
+              <span className="text-zinc-700">|</span>
+              <span className={isDucking ? "text-purple-400 font-semibold" : "text-zinc-500"}>
+                Sidechain Ducking: {isDucking ? "ACTIVE" : "OFF"}
+              </span>
+            </>
+          )}
+        </div>
+        {!isFooterCollapsed && (
+          <div className="flex items-center space-x-3">
+            <span>Active View: <strong className="text-cyan-300 uppercase">{currentView}</strong></span>
+            <span className="text-zinc-700">|</span>
+            <span>Dual Fist Kill Switch: {gestureState.isDualFist ? "ACTIVE" : "READY"}</span>
+            <span className="text-zinc-700">|</span>
+            <span className="text-cyan-400 font-medium">MusicOuts Pro DAW</span>
           </div>
-          <span className="text-zinc-700">|</span>
-          <span>Web Audio DSP: 4-Track 64-bit Flow</span>
-          <span className="text-zinc-700">|</span>
-          <span className={isDucking ? "text-purple-400 font-semibold" : "text-zinc-500"}>
-            Sidechain Ducking: {isDucking ? "ACTIVE" : "OFF"}
-          </span>
-        </div>
-        <div className="flex items-center space-x-3">
-          <span>Active View: <strong className="text-cyan-300 uppercase">{currentView}</strong></span>
-          <span className="text-zinc-700">|</span>
-          <span>Dual Fist Kill Switch: {gestureState.isDualFist ? "ACTIVE" : "READY"}</span>
-          <span className="text-zinc-700">|</span>
-          <span className="text-cyan-400 font-medium">MusicOuts Pro DAW</span>
-        </div>
+        )}
       </footer>
+
+      {/* 4. Studio Guide & Onboarding Modal */}
+      <StudioGuideModal isOpen={isGuideOpen} onClose={() => setIsGuideOpen(false)} />
     </div>
   );
 };

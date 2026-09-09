@@ -223,20 +223,34 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
             ctx.stroke();
           }
         } else if (mode === 'oscilloscope') {
-          // MODE 3: Time-Domain Waveform Oscilloscope (pure white beam)
-          const waveData = audioGraph.getWaveformData();
+          // MODE 3: Time-Domain Waveform Oscilloscope (with idle breathing animation)
+          const waveData = audioGraph?.getWaveformData() || new Uint8Array(256).fill(128);
           const sliceWidth = width / waveData.length;
+          const time = performance.now() * 0.003;
+
+          let maxDev = 0;
+          for (let i = 0; i < waveData.length; i++) {
+            maxDev = Math.max(maxDev, Math.abs(waveData[i] - 128));
+          }
+          const isSilent = maxDev < 3 || !isPlaying;
 
           ctx.beginPath();
-          ctx.lineWidth = 3;
-          ctx.strokeStyle = '#ffffff';
-          ctx.shadowColor = 'rgba(255, 255, 255, 0.8)';
+          ctx.lineWidth = 2.5;
+          ctx.strokeStyle = isSilent ? '#38bdf8' : '#22d3ee';
+          ctx.shadowColor = isSilent ? 'rgba(56, 189, 248, 0.6)' : 'rgba(34, 211, 238, 0.9)';
           ctx.shadowBlur = 14;
 
           let x = 0;
           for (let i = 0; i < waveData.length; i++) {
-            const v = waveData[i] / 128.0; // 0 to 2, 1.0 is center
-            const y = (v * height) / 2;
+            let v = (waveData[i] - 128) / 128.0; // -1 to 1
+            if (isSilent) {
+              // Idle high-tech breathing wave
+              v = Math.sin(i * 0.06 + time) * 0.12 + Math.sin(i * 0.02 - time * 0.7) * 0.06;
+            } else {
+              // Boost sensitivity slightly for lively response
+              v = Math.max(-1, Math.min(1, v * 1.35));
+            }
+            const y = height / 2 + v * (height * 0.42);
 
             if (i === 0) {
               ctx.moveTo(x, y);
@@ -249,19 +263,26 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
           ctx.stroke();
 
-          // Horizontal center reference line
+          // Horizontal center reference line & grid marks
           ctx.beginPath();
           ctx.setLineDash([4, 4]);
           ctx.lineWidth = 1;
-          ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+          ctx.strokeStyle = 'rgba(56, 189, 248, 0.2)';
           ctx.moveTo(0, height / 2);
           ctx.lineTo(width, height / 2);
           ctx.stroke();
           ctx.setLineDash([]);
         } else if (mode === 'vocal') {
           // MODE 4: High-Definition Dedicated Vocal Waveform & Energy Visualizer
-          const vocalWave = audioGraph.getWaveformData('vocals');
+          const vocalWave = audioGraph?.getWaveformData('vocals') || new Uint8Array(256).fill(128);
           const sliceWidth = width / vocalWave.length;
+          const time = performance.now() * 0.003;
+
+          let maxDev = 0;
+          for (let i = 0; i < vocalWave.length; i++) {
+            maxDev = Math.max(maxDev, Math.abs(vocalWave[i] - 128));
+          }
+          const isSilent = maxDev < 3 || !isPlaying;
 
           // Compute RMS for dynamic amplitude flare
           let sumSq = 0;
@@ -269,19 +290,29 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
             const norm = (vocalWave[i] - 128) / 128;
             sumSq += norm * norm;
           }
-          const vocalRms = Math.sqrt(sumSq / vocalWave.length);
+          const vocalRms = isSilent ? 0.15 : Math.sqrt(sumSq / vocalWave.length);
 
           // Render Mirrored Glowing Waveform Ribbon
           ctx.beginPath();
           ctx.moveTo(0, height / 2);
           for (let i = 0; i < vocalWave.length; i++) {
-            const v = (vocalWave[i] - 128) / 128; // -1 to 1
+            let v = (vocalWave[i] - 128) / 128; // -1 to 1
+            if (isSilent) {
+              v = Math.sin(i * 0.08 + time * 1.2) * 0.1 + Math.sin(i * 0.03 - time * 0.5) * 0.05;
+            } else {
+              v = Math.max(-1, Math.min(1, v * 1.35));
+            }
             const y = height / 2 - v * (height * 0.42);
             const x = i * sliceWidth;
             ctx.lineTo(x, y);
           }
           for (let i = vocalWave.length - 1; i >= 0; i--) {
-            const v = (vocalWave[i] - 128) / 128;
+            let v = (vocalWave[i] - 128) / 128;
+            if (isSilent) {
+              v = Math.sin(i * 0.08 + time * 1.2) * 0.1 + Math.sin(i * 0.03 - time * 0.5) * 0.05;
+            } else {
+              v = Math.max(-1, Math.min(1, v * 1.35));
+            }
             const y = height / 2 + v * (height * 0.42);
             const x = i * sliceWidth;
             ctx.lineTo(x, y);
@@ -289,12 +320,12 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
           ctx.closePath();
 
           const fillGrad = ctx.createLinearGradient(0, 0, 0, height);
-          fillGrad.addColorStop(0, 'rgba(255, 255, 255, 0.45)');
-          fillGrad.addColorStop(0.5, 'rgba(255, 255, 255, 0.1)');
-          fillGrad.addColorStop(1, 'rgba(255, 255, 255, 0.45)');
+          fillGrad.addColorStop(0, isSilent ? 'rgba(6, 182, 212, 0.35)' : 'rgba(34, 211, 238, 0.55)');
+          fillGrad.addColorStop(0.5, 'rgba(6, 182, 212, 0.08)');
+          fillGrad.addColorStop(1, isSilent ? 'rgba(6, 182, 212, 0.35)' : 'rgba(34, 211, 238, 0.55)');
           ctx.fillStyle = fillGrad;
-          ctx.shadowColor = 'rgba(255, 255, 255, 0.9)';
-          ctx.shadowBlur = 12 * (1 + vocalRms * 2);
+          ctx.shadowColor = 'rgba(6, 182, 212, 0.85)';
+          ctx.shadowBlur = 14 * (1 + vocalRms * 2);
           ctx.fill();
 
           // Stroke spine

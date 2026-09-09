@@ -287,11 +287,16 @@ describe('GestureTracker Class', () => {
     };
 
     const mockVideo = {} as HTMLVideoElement;
-    const result = tracker.processFrame(mockVideo, 1000);
+    // Frame 1: Starts hold countdown
+    const frame1 = tracker.processFrame(mockVideo, 1000);
+    expect(frame1?.state.leftHand.isFist).toBe(true);
+    expect(frame1?.state.rightHand.isFist).toBe(true);
+    expect(frame1?.state.isDualFist).toBe(false);
 
-    expect(result?.state.leftHand.isFist).toBe(true);
-    expect(result?.state.rightHand.isFist).toBe(true);
-    expect(result?.state.isDualFist).toBe(true);
+    // Frame 2: After 400ms hold (> 350ms), dual fist kill switch engages!
+    const frame2 = tracker.processFrame(mockVideo, 1400);
+    expect(frame2?.state.isDualFist).toBe(true);
+    expect(frame2?.state.fistHoldProgress).toBe(1.0);
   });
 
   it('correctly triggers left hand pinch for solo vocals', () => {

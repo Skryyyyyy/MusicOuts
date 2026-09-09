@@ -55,6 +55,7 @@ export interface GestureState {
   leftHand: HandData;
   rightHand: HandData;
   isDualFist: boolean;
+  fistHoldProgress?: number; // 0.0 to 1.0 (hold countdown)
   djFilterCutoff: number; // in Hz (e.g., 20 to 20000)
   djFilterType: 'lowpass' | 'highpass';
 }
@@ -64,4 +65,37 @@ export interface PlaybackState {
   currentTime: number;
   duration: number;
   masterVolume: number;
+}
+
+export interface HardwareInfo {
+  device: 'cuda' | 'cpu';
+  cuda_available: boolean;
+  device_name: string;
+  vram_gb: number;
+  device_count: number;
+  cpu_threads: number;
+  ram_gb: number;
+}
+
+export interface TimelineMarker {
+  id: string;
+  name: string;
+  time: number;
+  color: string;
+}
+
+export interface MusicOutsProject {
+  version: string;
+  title: string;
+  trackId: string;
+  duration: number;
+  bpm: number;
+  key: string;
+  stemStates: Record<StemType, StemState>;
+  masterVolume: number;
+  djFilterCutoff: number;
+  djFilterType: 'lowpass' | 'highpass';
+  isDucking: boolean;
+  markers: TimelineMarker[];
+  created: string;
 }

@@ -44,6 +44,7 @@ export const DEFAULT_GESTURE_STATE: GestureState = {
   leftHand: { ...DEFAULT_HAND_DATA },
   rightHand: { ...DEFAULT_HAND_DATA },
   isDualFist: false,
+  fistHoldProgress: 0.0,
   djFilterCutoff: 20000,
   djFilterType: 'lowpass',
 };
@@ -184,6 +185,8 @@ export class GestureTracker {
   private pinchThreshold: number;
   private fistThreshold: number;
   private isTrackingState: boolean = false;
+  private dualFistStartTime: number | null = null;
+  public fistHoldDurationMs: number = 350;
 
   constructor(options?: GestureTrackerOptions) {
     this.alpha = options?.alpha ?? DEFAULT_EMA_ALPHA;
@@ -356,8 +359,24 @@ export class GestureTracker {
       this.previousLandmarks.delete('Right');
     }
 
-    // Dual fist kill switch
-    const isDualFist = leftHand.present && rightHand.present && leftHand.isFist && rightHand.isFist;
+    // Dual fist kill switch with hold-delay countdown
+    const bothFistsPresent =
+      leftHand.present && rightHand.present && leftHand.isFist && rightHand.isFist;
+    let isDualFist = false;
+    let fistHoldProgress = 0.0;
+
+    if (bothFistsPresent) {
+      if (this.dualFistStartTime === null) {
+        this.dualFistStartTime = timestamp;
+      }
+      const elapsed = timestamp - this.dualFistStartTime;
+      fistHoldProgress = Math.min(1.0, elapsed / this.fistHoldDurationMs);
+      isDualFist = fistHoldProgress >= 1.0;
+    } else {
+      this.dualFistStartTime = null;
+      fistHoldProgress = 0.0;
+      isDualFist = false;
+    }
 
     // DJ Biquad filter calculation
     let djFilterCutoff = 20000;
@@ -373,6 +392,7 @@ export class GestureTracker {
       leftHand,
       rightHand,
       isDualFist,
+      fistHoldProgress,
       djFilterCutoff,
       djFilterType,
     };

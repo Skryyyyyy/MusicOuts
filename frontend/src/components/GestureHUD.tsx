@@ -209,6 +209,66 @@ export const GestureHUD: React.FC<GestureHUDProps> = ({
                 ctx.shadowBlur = isTip ? 16 : 8;
                 ctx.fill();
               }
+
+              // Draw floating gesture modulation tags directly near hands on canvas
+              const wrist = handLandmarks[0];
+              const middleTip = handLandmarks[12];
+              if (wrist && middleTip) {
+                const labelX = wrist.x * canvas.width;
+                const labelY = Math.max(28, middleTip.y * canvas.height - 24);
+
+                ctx.save();
+                ctx.font = 'bold 11px monospace';
+                ctx.textAlign = 'center';
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = glowColor;
+
+                if (isLeftHand) {
+                  const volText = `VOCALS: ${Math.round(gestureState.leftHand.height * 100)}%`;
+                  const subText = gestureState.leftHand.isPinching
+                    ? '⚡ SOLO PINCH'
+                    : gestureState.leftHand.isFist
+                    ? '🔴 MUTE FIST'
+                    : 'LEFT HAND';
+
+                  // Pill background
+                  ctx.fillStyle = 'rgba(10, 15, 25, 0.9)';
+                  ctx.strokeStyle = '#06b6d4';
+                  ctx.lineWidth = 1.5;
+                  ctx.beginPath();
+                  ctx.roundRect(labelX - 60, labelY - 22, 120, 30, 6);
+                  ctx.fill();
+                  ctx.stroke();
+
+                  ctx.fillStyle = '#22d3ee';
+                  ctx.fillText(volText, labelX, labelY - 7);
+                  ctx.fillStyle = gestureState.leftHand.isPinching ? '#f59e0b' : '#94a3b8';
+                  ctx.font = '9px monospace';
+                  ctx.fillText(subText, labelX, labelY + 5);
+                } else {
+                  const instText = `INST: ${Math.round(gestureState.rightHand.height * 100)}%`;
+                  const filterText = `FILTER: ${(gestureState.djFilterCutoff / 1000).toFixed(1)}k ${
+                    gestureState.djFilterType === 'highpass' ? 'HP' : 'LP'
+                  }`;
+
+                  // Pill background
+                  ctx.fillStyle = 'rgba(25, 15, 10, 0.9)';
+                  ctx.strokeStyle = '#f97316';
+                  ctx.lineWidth = 1.5;
+                  ctx.beginPath();
+                  ctx.roundRect(labelX - 60, labelY - 22, 120, 30, 6);
+                  ctx.fill();
+                  ctx.stroke();
+
+                  ctx.fillStyle = '#fb923c';
+                  ctx.fillText(instText, labelX, labelY - 7);
+                  ctx.fillStyle = '#38bdf8';
+                  ctx.font = '9px monospace';
+                  ctx.fillText(filterText, labelX, labelY + 5);
+                }
+
+                ctx.restore();
+              }
             });
 
             ctx.restore();
@@ -224,7 +284,7 @@ export const GestureHUD: React.FC<GestureHUDProps> = ({
     return () => {
       cancelAnimationFrame(animId);
     };
-  }, [showSkeleton, isMirrored]);
+  }, [showSkeleton, isMirrored, gestureState]);
 
   return (
     <div className={`relative bg-deck-card border border-deck-border rounded-xl overflow-hidden shadow-2xl flex flex-col ${className}`}>
@@ -417,11 +477,27 @@ export const GestureHUD: React.FC<GestureHUDProps> = ({
               </div>
             </div>
 
+            {/* Dual Fist Hold Countdown */}
+            {!gestureState.isDualFist && (gestureState.fistHoldProgress || 0) > 0.05 && (
+              <div className="absolute bottom-4 inset-x-8 bg-amber-950/90 backdrop-blur-md border-2 border-amber-500 rounded-xl py-2 px-4 flex flex-col items-center gap-1.5 shadow-[0_0_20px_rgba(245,158,11,0.5)] z-30">
+                <span className="text-amber-300 font-mono font-bold text-xs tracking-wider uppercase flex items-center space-x-1.5">
+                  <span>HOLD DUAL FISTS TO CUT AUDIO</span>
+                  <span className="text-white">({Math.round((gestureState.fistHoldProgress || 0) * 100)}%)</span>
+                </span>
+                <div className="w-full h-1.5 bg-black/60 rounded-full overflow-hidden border border-amber-500/40">
+                  <div
+                    className="h-full bg-gradient-to-r from-amber-500 to-red-500 rounded-full transition-all duration-75"
+                    style={{ width: `${Math.round((gestureState.fistHoldProgress || 0) * 100)}%` }}
+                  />
+                </div>
+              </div>
+            )}
+
             {/* Dual Fist Master Kill Switch Alert */}
             {gestureState.isDualFist && (
-              <div className="absolute bottom-4 inset-x-8 bg-zinc-950/95 backdrop-blur-md border-2 border-white rounded-xl py-2.5 px-4 text-center shadow-mono-glow z-30 animate-pulse">
-                <span className="text-white font-mono font-extrabold text-xs tracking-widest uppercase">
-                  ⚠️ KILL SWITCH ACTIVE (DUAL FIST) — ALL STEMS MUTED ⚠️
+              <div className="absolute bottom-4 inset-x-8 bg-red-950/95 backdrop-blur-md border-2 border-red-500 rounded-xl py-2.5 px-4 text-center shadow-[0_0_25px_rgba(239,68,68,0.7)] z-30 animate-pulse">
+                <span className="text-white font-mono font-black text-xs tracking-widest uppercase">
+                  ⚡ MASTER KILL SWITCH ENGAGED (DUAL FIST) — MASTER AUDIO CUT ⚡
                 </span>
               </div>
             )}

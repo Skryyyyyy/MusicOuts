@@ -18,9 +18,10 @@ import {
   Sparkles,
   Activity,
   Download,
+  HelpCircle,
 } from "lucide-react";
 import { AudioGraphEngine } from "../engine/audioGraph";
-import { ProcessStatus, StudioView } from "../types";
+import { ProcessStatus, StudioView, HardwareInfo } from "../types";
 
 export interface DawTransportProps {
   isPlaying: boolean;
@@ -37,7 +38,9 @@ export interface DawTransportProps {
   duckingReduction: number;
   audioGraph?: AudioGraphEngine | null;
   currentView?: StudioView;
+  hardwareInfo?: HardwareInfo | null;
   onViewChange?: (view: StudioView) => void;
+  onOpenGuide?: () => void;
   onPlayToggle: () => void;
   onStop: () => void;
   onSeek: (seconds: number) => void;
@@ -71,7 +74,9 @@ export const DawTransport: React.FC<DawTransportProps> = ({
   isDucking,
   duckingReduction,
   currentView = "arrangement",
+  hardwareInfo,
   onViewChange,
+  onOpenGuide,
   onPlayToggle,
   onStop,
   onReset,
@@ -395,18 +400,32 @@ export const DawTransport: React.FC<DawTransportProps> = ({
         </div>
 
         {/* Hardware & DSP Telemetry */}
-        <div className="hidden 2xl:flex items-center space-x-1.5 text-[9px] font-mono">
+        <div className="hidden xl:flex items-center space-x-1.5 text-[9px] font-mono">
           <div className="flex items-center space-x-1 px-2 py-1 bg-[#121316] rounded border border-[#262830]">
             <Cpu className="w-3 h-3 text-cyan-400" />
-            <span className="text-zinc-400">CUDA:</span>
-            <span className="text-zinc-200 font-bold">RTX 2050</span>
+            <span className="text-zinc-400">{hardwareInfo?.cuda_available ? "CUDA:" : "ENGINE:"}</span>
+            <span className="text-zinc-200 font-bold">
+              {hardwareInfo ? hardwareInfo.device_name : "NVIDIA RTX / CPU"}
+            </span>
           </div>
           <div className="flex items-center space-x-1 px-2 py-1 bg-[#121316] rounded border border-[#262830]">
             <Zap className="w-3 h-3 text-amber-400" />
             <span className="text-zinc-400">DSP:</span>
-            <span className="text-zinc-200 font-bold">60 FPS</span>
+            <span className="text-zinc-200 font-bold">64-bit Flow</span>
           </div>
         </div>
+
+        {/* Quick Studio Tour Button */}
+        {onOpenGuide && (
+          <button
+            onClick={onOpenGuide}
+            className="p-1.5 rounded-lg bg-[#121316] border border-[#262830] text-zinc-400 hover:text-cyan-300 hover:border-cyan-500/40 transition-all flex items-center space-x-1 text-xs font-mono"
+            title="Open Studio Tour & Reference Guide"
+          >
+            <HelpCircle className="w-3.5 h-3.5 text-cyan-400" />
+            <span className="hidden sm:inline text-[10px] font-bold">GUIDE</span>
+          </button>
+        )}
       </div>
     </header>
   );

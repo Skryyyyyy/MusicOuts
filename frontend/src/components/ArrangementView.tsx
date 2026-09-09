@@ -30,7 +30,7 @@ interface StemTrackConfig {
   name: string;
   shortName: string;
   icon: React.ReactNode;
-  gestureTag: string;
+  routing: string;
   badge: string;
   color: string;
   waveColor: string;
@@ -42,7 +42,7 @@ const STEM_CONFIGS: Record<StemType, StemTrackConfig> = {
     name: '01 VOCALS [LEAD]',
     shortName: 'VOCALS',
     icon: <Mic className="w-3.5 h-3.5 text-cyan-400" />,
-    gestureTag: 'LEFT HAND HEIGHT & PINCH',
+    routing: 'CH 01 • STEREO BUS',
     badge: 'AUDIO 01',
     color: '#00bcd4',
     waveColor: '#22d3ee',
@@ -52,7 +52,7 @@ const STEM_CONFIGS: Record<StemType, StemTrackConfig> = {
     name: '02 DRUMS [PERC]',
     shortName: 'DRUMS',
     icon: <Disc className="w-3.5 h-3.5 text-orange-400" />,
-    gestureTag: 'RIGHT HAND HEIGHT',
+    routing: 'CH 02 • STEREO BUS',
     badge: 'AUDIO 02',
     color: '#ff7043',
     waveColor: '#fb923c',
@@ -62,7 +62,7 @@ const STEM_CONFIGS: Record<StemType, StemTrackConfig> = {
     name: '03 BASS [LOW-END]',
     shortName: 'BASS',
     icon: <Music className="w-3.5 h-3.5 text-purple-400" />,
-    gestureTag: 'RIGHT HAND HEIGHT',
+    routing: 'CH 03 • STEREO BUS',
     badge: 'AUDIO 03',
     color: '#ab47bc',
     waveColor: '#c084fc',
@@ -72,7 +72,7 @@ const STEM_CONFIGS: Record<StemType, StemTrackConfig> = {
     name: '04 OTHER [SYNTH & INST]',
     shortName: 'OTHER',
     icon: <Radio className="w-3.5 h-3.5 text-emerald-400" />,
-    gestureTag: 'RIGHT HAND HEIGHT & FILTER',
+    routing: 'CH 04 • STEREO BUS',
     badge: 'AUDIO 04',
     color: '#26a69a',
     waveColor: '#34d399',
@@ -266,14 +266,14 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
           </span>
         </div>
 
-        {/* Timeline Ruler Area (Bars / Timecode Ticks) */}
+        {/* Timeline Ruler Area (Bars / Timecode Ticks + Section Markers) */}
         <div
           ref={timelineContainerRef}
           onMouseDown={handleMouseDown}
           className={`relative flex-1 h-9 bg-[#0e0f12] overflow-hidden border-b border-[#262830] group ${
             isScrubbing ? 'cursor-grabbing' : 'cursor-pointer'
           }`}
-          title="Cubase Timeline Ruler - Click or drag to seek"
+          title="Timeline Ruler - Click or drag to seek"
         >
           {/* Sub-beat Ruler Grid Marks */}
           <div className="absolute inset-0 flex justify-between px-2 pointer-events-none">
@@ -294,6 +294,29 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
             })}
           </div>
 
+          {/* Section Markers */}
+          <div className="absolute inset-0 flex items-center px-4 pointer-events-auto z-20 space-x-6">
+            {[
+              { name: 'INTRO', ratio: 0.05, color: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40' },
+              { name: 'VERSE', ratio: 0.25, color: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' },
+              { name: 'CHORUS', ratio: 0.50, color: 'bg-amber-500/20 text-amber-300 border-amber-500/40' },
+              { name: 'DROP', ratio: 0.70, color: 'bg-purple-500/20 text-purple-300 border-purple-500/40' },
+              { name: 'OUTRO', ratio: 0.90, color: 'bg-zinc-800 text-zinc-300 border-zinc-600' },
+            ].map((m) => (
+              <button
+                key={m.name}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSeek(m.ratio * (duration || 180));
+                }}
+                className={`px-1.5 py-0.2 rounded text-[8px] font-mono font-bold border transition-transform hover:scale-110 shadow-sm ${m.color}`}
+                title={`Jump to ${m.name}`}
+              >
+                {m.name}
+              </button>
+            ))}
+          </div>
+
           {/* Loop Region Bracket Indicator */}
           {isLooping && (
             <div className="absolute top-0 bottom-0 left-0 right-0 bg-cyan-500/10 border-b-2 border-cyan-400 pointer-events-none" />
@@ -310,7 +333,7 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
         </div>
       </div>
 
-      {/* 2. Cubase 4-Stem Multi-Track Arrangement Lanes */}
+      {/* 2. 4-Stem Multi-Track Arrangement Lanes */}
       <div className="flex-1 flex flex-col divide-y divide-[#22242c] bg-[#0d0e11]">
         {STEM_TYPES.map((stem) => {
           const config = STEM_CONFIGS[stem];
@@ -322,9 +345,9 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
 
           return (
             <div key={stem} className="flex min-h-[92px] group transition-colors hover:bg-[#14151a]">
-              {/* Left Column: Cubase Track Header Strip */}
+              {/* Left Column: Track Header Strip */}
               <div className="w-72 sm:w-80 p-3 bg-[#17181d] border-r border-[#262830] flex flex-col justify-between space-y-1.5 relative">
-                {/* Left Colored Spine Bar (Cubase Track ID) */}
+                {/* Left Colored Spine Bar (Track ID) */}
                 <div
                   className="absolute left-0 top-0 bottom-0 w-1"
                   style={{ backgroundColor: config.color }}
@@ -341,7 +364,7 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
                         {config.name}
                       </h4>
                       <span className="text-[8px] font-mono text-zinc-500">
-                        {config.gestureTag}
+                        {config.routing}
                       </span>
                     </div>
                   </div>

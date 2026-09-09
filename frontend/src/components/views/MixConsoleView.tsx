@@ -171,7 +171,31 @@ export const MixConsoleView: React.FC<MixConsoleViewProps> = ({
           </span>
         </div>
 
-        <div className="flex items-center space-x-3 text-xs font-mono">
+        <div className="flex items-center space-x-2 text-xs font-mono">
+          {/* Scene Performance Snapshots */}
+          <div className="hidden xl:flex items-center space-x-1 px-2 py-0.5 rounded bg-[#101114] border border-[#22242b]">
+            <span className="text-[10px] text-zinc-500 font-bold mr-1">SCENES:</span>
+            {[
+              { name: 'INTRO', levels: { vocals: 0.4, drums: 0.2, bass: 0.0, other: 0.5 } },
+              { name: 'VERSE', levels: { vocals: 0.85, drums: 0.75, bass: 0.7, other: 0.65 } },
+              { name: 'DROP', levels: { vocals: 1.0, drums: 1.0, bass: 1.0, other: 0.9 } },
+              { name: 'ACAPELLA', levels: { vocals: 1.0, drums: 0.0, bass: 0.0, other: 0.1 } },
+            ].map((scene) => (
+              <button
+                key={scene.name}
+                onClick={() => {
+                  for (const stem of STEM_TYPES) {
+                    onStemVolumeChange(stem, scene.levels[stem]);
+                  }
+                }}
+                className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-[#1c1e24] hover:bg-cyan-600 text-zinc-300 hover:text-white border border-[#2d303a] transition-all"
+                title={`Recall ${scene.name} Stem Snapshot`}
+              >
+                {scene.name}
+              </button>
+            ))}
+          </div>
+
           {onDuckingToggle && (
             <button
               onClick={onDuckingToggle}
