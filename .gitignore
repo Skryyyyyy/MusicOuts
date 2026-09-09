@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+.pytest_cache/
+
+# Storage / media
+storage/downloads/*
+!storage/downloads/.gitkeep
+storage/stems/*
+!storage/stems/.gitkeep
+
+# Node / Frontend
+node_modules/
+dist/
+.dist/
+.vite/
+
+# SDD scratch
+.superpowers/
