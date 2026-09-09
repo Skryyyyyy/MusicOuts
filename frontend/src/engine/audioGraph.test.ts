@@ -64,12 +64,21 @@ class MockAudioBuffer {
   numberOfChannels: number;
   sampleRate: number;
   length: number;
+  private channelData: Float32Array;
 
   constructor(duration = 120) {
     this.duration = duration;
     this.numberOfChannels = 2;
     this.sampleRate = 44100;
     this.length = duration * 44100;
+    this.channelData = new Float32Array(this.length);
+    for (let i = 0; i < this.length; i++) {
+      this.channelData[i] = Math.sin((i / 44100) * 440 * Math.PI * 2) * 0.8;
+    }
+  }
+
+  getChannelData(_channel: number): Float32Array {
+    return this.channelData;
   }
 }
 
@@ -279,6 +288,65 @@ describe('AudioGraphEngine', () => {
       const vocalsWave = engine.getWaveformData('vocals');
       expect(vocalsWave).toBeInstanceOf(Uint8Array);
       expect(vocalsWave.length).toBe(1024);
+    });
+  });
+
+  describe('Peak Extraction & Waveform Scrubber', () => {
+    it('generates downsampled peak array for vocal stem and caches result', async () => {
+      globalThis.fetch = vi.fn().mockImplementation(() =>
+        Promise.resolve({
+          ok: true,
+          statusText: 'OK',
+          arrayBuffer: () => Promise.resolve(new ArrayBuffer(1024)),
+        })
+      );
+
+      await engine.loadStems('track-123');
+      const peaks = engine.getStemPeakData('vocals', 120);
+
+      expect(peaks).toBeInstanceOf(Float32Array);
+      expect(peaks.length).toBe(120);
+      expect(peaks[0]).toBeGreaterThan(0);
+
+      // Verify cached reference is returned
+      const cached = engine.getStemPeakData('vocals', 120);
+      expect(cached).toBe(peaks);
+    });
+
+    it('returns zeros for uninitialized stem buffer', () => {
+      const emptyPeaks = engine.getStemPeakData('vocals', 64);
+      expect(emptyPeaks.length).toBe(64);
+      expect(emptyPeaks[0]).toBe(0);
+    });
+  });
+
+  describe('Auto Sidechain Ducking', () => {
+    it('enables and disables auto ducking', () => {
+      expect(engine.isDuckingEnabled()).toBe(false);
+      engine.setDuckingEnabled(true);
+      expect(engine.isDuckingEnabled()).toBe(true);
+      expect(engine.getDuckingGainReduction()).toBe(1.0);
+
+      engine.setDuckingEnabled(false);
+      expect(engine.isDuckingEnabled()).toBe(false);
+    });
+
+    it('updates auto ducking gain reduction when vocal signal is present', async () => {
+      globalThis.fetch = vi.fn().mockImplementation(() =>
+        Promise.resolve({
+          ok: true,
+          statusText: 'OK',
+          arrayBuffer: () => Promise.resolve(new ArrayBuffer(1024)),
+        })
+      );
+
+      await engine.loadStems('track-123');
+      await engine.play(0);
+      engine.setDuckingEnabled(true);
+
+      const reduction = engine.updateAutoDucking();
+      expect(typeof reduction).toBe('number');
+      expect(reduction).toBeLessThanOrEqual(1.0);
     });
   });
 

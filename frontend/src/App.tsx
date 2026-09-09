@@ -29,6 +29,9 @@ export const App: React.FC = () => {
   const [duration, setDuration] = useState<number>(180);
   const [isLooping, setIsLooping] = useState<boolean>(false);
   const [masterVolume, setMasterVolume] = useState<number>(1.0);
+  // Auto-Ducking State
+  const [isDucking, setIsDucking] = useState<boolean>(false);
+  const [duckingReduction, setDuckingReduction] = useState<number>(1.0);
 
   // Stems State
   const [stems, setStems] = useState<Record<StemType, StemState>>(INITIAL_STEM_STATES);
@@ -76,7 +79,7 @@ export const App: React.FC = () => {
     };
   }, []);
 
-  // Real-time animation playback clock loop
+  // Real-time animation playback clock and auto-ducking loop
   useEffect(() => {
     let animId: number;
 
@@ -86,6 +89,8 @@ export const App: React.FC = () => {
         if (audioGraph.isPlaying()) {
           setCurrentTime(audioGraph.getCurrentTime());
           setDuration(audioGraph.getDuration() || 180);
+          const reduction = audioGraph.updateAutoDucking();
+          setDuckingReduction(reduction);
         }
       }
       animId = requestAnimationFrame(tick);
@@ -203,6 +208,16 @@ export const App: React.FC = () => {
     setIsLooping(nextLoop);
     if (audioGraph) {
       audioGraph.setLoop(nextLoop);
+    }
+  };
+
+  // Auto-Ducking Toggle
+  const handleDuckingToggle = () => {
+    const audioGraph = audioGraphRef.current;
+    const nextDucking = !isDucking;
+    setIsDucking(nextDucking);
+    if (audioGraph) {
+      audioGraph.setDuckingEnabled(nextDucking);
     }
   };
 
@@ -397,10 +412,14 @@ export const App: React.FC = () => {
           duration={duration}
           isLooping={isLooping}
           isReady={true}
+          audioGraph={audioGraphRef.current}
+          isDucking={isDucking}
+          duckingReduction={duckingReduction}
           onPlayToggle={handlePlayToggle}
           onSeek={handleSeek}
           onReset={handleReset}
           onLoopToggle={handleLoopToggle}
+          onDuckingToggle={handleDuckingToggle}
         />
       </div>
 
@@ -417,6 +436,10 @@ export const App: React.FC = () => {
           </div>
           <span className="text-deck-border">|</span>
           <span>Web Audio Graph: 4-Channel Active</span>
+          <span className="text-deck-border">|</span>
+          <span className={isDucking ? 'text-white font-semibold' : 'text-zinc-500'}>
+            Sidechain Ducking: {isDucking ? 'AUTO' : 'DISABLED'}
+          </span>
         </div>
         <div className="flex items-center space-x-4">
           <span>Dual Fist Kill Switch: {gestureState.isDualFist ? 'ACTIVE' : 'READY'}</span>

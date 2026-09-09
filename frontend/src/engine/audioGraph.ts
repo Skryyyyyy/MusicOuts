@@ -47,6 +47,15 @@ export class AudioGraphEngine {
     Q: 1.0,
   };
 
+  // Auto Sidechain Ducking State
+  private isDuckingEnabledState: boolean = false;
+  private duckingAmount: number = 0.35; // Backing stems gain multiplier when vocals active (-9dB)
+  private duckingThreshold: number = 0.045; // RMS threshold on vocal channel
+  private currentDuckingGainReduction: number = 1.0;
+
+  // Peak overview cache for timeline waveform rendering
+  private peakCache: WeakMap<AudioBuffer, Float32Array> = new WeakMap();
+
   // Reusable typed array buffers for visualizers to prevent GC pressure
   private freqBuffers: WeakMap<AnalyserNode, Uint8Array> = new WeakMap();
   private waveBuffers: WeakMap<AnalyserNode, Uint8Array> = new WeakMap();
@@ -377,6 +386,10 @@ export class AudioGraphEngine {
       } else {
         if (!ch.state.muted) {
           targetGain = ch.state.volume;
+          // Apply auto-sidechain ducking to backing stems when active
+          if (this.isDuckingEnabledState && stem !== 'vocals') {
+            targetGain *= this.currentDuckingGainReduction;
+          }
         } else {
           targetGain = 0;
         }
@@ -579,6 +592,112 @@ export class AudioGraphEngine {
    */
   public getDjFilterState(): DjFilterState {
     return { ...this.djFilterState };
+  }
+
+  /**
+   * Enable or disable automatic sidechain ducking.
+   */
+  public setDuckingEnabled(enabled: boolean): void {
+    this.isDuckingEnabledState = enabled;
+    if (!enabled) {
+      this.currentDuckingGainReduction = 1.0;
+    }
+    this.applyStemGains(0.04);
+  }
+
+  /**
+   * Returns whether sidechain ducking is currently enabled.
+   */
+  public isDuckingEnabled(): boolean {
+    return this.isDuckingEnabledState;
+  }
+
+  /**
+   * Returns current ducking gain reduction multiplier (1.0 = none, <1.0 = ducked).
+   */
+  public getDuckingGainReduction(): number {
+    return this.currentDuckingGainReduction;
+  }
+
+  /**
+   * Real-time sidechain analysis frame update.
+   * Analyzes Vocals RMS energy and applies smooth ducking attack/release to backing stems.
+   * Returns the current gain reduction multiplier.
+   */
+  public updateAutoDucking(): number {
+    if (!this.isDuckingEnabledState || !this.isPlayingState) {
+      if (this.currentDuckingGainReduction !== 1.0) {
+        this.currentDuckingGainReduction = 1.0;
+        this.applyStemGains(0.04);
+      }
+      return 1.0;
+    }
+
+    const vocalWave = this.getWaveformData('vocals');
+    let sumSquares = 0;
+    for (let i = 0; i < vocalWave.length; i++) {
+      const normalized = (vocalWave[i] - 128) / 128; // -1 to 1
+      sumSquares += normalized * normalized;
+    }
+    const rms = Math.sqrt(sumSquares / vocalWave.length);
+
+    // If vocal level is above threshold, target ducking amount, else restore to 1.0
+    const targetReduction = rms > this.duckingThreshold ? this.duckingAmount : 1.0;
+
+    // Fast attack (0.25), gentle release (0.05)
+    const smoothing = targetReduction < this.currentDuckingGainReduction ? 0.25 : 0.05;
+    const nextReduction = this.currentDuckingGainReduction + (targetReduction - this.currentDuckingGainReduction) * smoothing;
+
+    if (Math.abs(nextReduction - this.currentDuckingGainReduction) > 0.005) {
+      this.currentDuckingGainReduction = nextReduction;
+      this.applyStemGains(0.02);
+    }
+
+    return this.currentDuckingGainReduction;
+  }
+
+  /**
+   * Returns the decoded AudioBuffer for a given stem, or null if not loaded.
+   */
+  public getStemBuffer(stem: StemType): AudioBuffer | null {
+    return this.channels[stem]?.buffer || null;
+  }
+
+  /**
+   * Extracts downsampled peak amplitude data (0.0 to 1.0) for waveform rendering.
+   * Cached per AudioBuffer for instant rendering.
+   */
+  public getStemPeakData(stem: StemType = 'vocals', samples: number = 300): Float32Array {
+    const buffer = this.channels[stem]?.buffer;
+    if (!buffer) {
+      return new Float32Array(samples);
+    }
+
+    const cached = this.peakCache.get(buffer);
+    if (cached && cached.length === samples) {
+      return cached;
+    }
+
+    const channelData = buffer.getChannelData(0);
+    const totalSamples = channelData.length;
+    const blockSize = Math.floor(totalSamples / samples);
+    const peaks = new Float32Array(samples);
+
+    for (let i = 0; i < samples; i++) {
+      const start = i * blockSize;
+      const end = Math.min(start + blockSize, totalSamples);
+      let maxVal = 0;
+      for (let j = start; j < end; j += 4) { // stride of 4 for speed
+        const absVal = Math.abs(channelData[j]);
+        if (absVal > maxVal) {
+          maxVal = absVal;
+        }
+      }
+      peaks[i] = Math.min(1.0, maxVal);
+    }
+
+    this.peakCache.set(buffer, peaks);
+    return peaks;
   }
 
   /**

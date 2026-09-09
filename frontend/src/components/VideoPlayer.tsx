@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Video as VideoIcon, BarChart3, Disc, Activity } from 'lucide-react';
+import { Video as VideoIcon, BarChart3, Disc, Activity, Mic } from 'lucide-react';
 import { AudioGraphEngine } from '../engine/audioGraph';
 import { STEM_TYPES, StemType, TrackMetadata } from '../types';
 
-export type VisualizerMode = 'bars' | 'circular' | 'oscilloscope' | 'video';
+export type VisualizerMode = 'bars' | 'circular' | 'oscilloscope' | 'vocal' | 'video';
 
 export interface VideoPlayerProps {
   audioGraph: AudioGraphEngine | null;
@@ -254,6 +254,64 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
           ctx.lineTo(width, height / 2);
           ctx.stroke();
           ctx.setLineDash([]);
+        } else if (mode === 'vocal') {
+          // MODE 4: High-Definition Dedicated Vocal Waveform & Energy Visualizer
+          const vocalWave = audioGraph.getWaveformData('vocals');
+          const sliceWidth = width / vocalWave.length;
+
+          // Compute RMS for dynamic amplitude flare
+          let sumSq = 0;
+          for (let i = 0; i < vocalWave.length; i++) {
+            const norm = (vocalWave[i] - 128) / 128;
+            sumSq += norm * norm;
+          }
+          const vocalRms = Math.sqrt(sumSq / vocalWave.length);
+
+          // Render Mirrored Glowing Waveform Ribbon
+          ctx.beginPath();
+          ctx.moveTo(0, height / 2);
+          for (let i = 0; i < vocalWave.length; i++) {
+            const v = (vocalWave[i] - 128) / 128; // -1 to 1
+            const y = height / 2 - v * (height * 0.42);
+            const x = i * sliceWidth;
+            ctx.lineTo(x, y);
+          }
+          for (let i = vocalWave.length - 1; i >= 0; i--) {
+            const v = (vocalWave[i] - 128) / 128;
+            const y = height / 2 + v * (height * 0.42);
+            const x = i * sliceWidth;
+            ctx.lineTo(x, y);
+          }
+          ctx.closePath();
+
+          const fillGrad = ctx.createLinearGradient(0, 0, 0, height);
+          fillGrad.addColorStop(0, 'rgba(255, 255, 255, 0.45)');
+          fillGrad.addColorStop(0.5, 'rgba(255, 255, 255, 0.1)');
+          fillGrad.addColorStop(1, 'rgba(255, 255, 255, 0.45)');
+          ctx.fillStyle = fillGrad;
+          ctx.shadowColor = 'rgba(255, 255, 255, 0.9)';
+          ctx.shadowBlur = 12 * (1 + vocalRms * 2);
+          ctx.fill();
+
+          // Stroke spine
+          ctx.beginPath();
+          ctx.lineWidth = 2.5;
+          ctx.strokeStyle = '#ffffff';
+          for (let i = 0; i < vocalWave.length; i++) {
+            const v = (vocalWave[i] - 128) / 128;
+            const y = height / 2 - v * (height * 0.42);
+            const x = i * sliceWidth;
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          }
+          ctx.stroke();
+
+          // Vocal Telemetry Overlay
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+          ctx.font = 'bold 11px monospace';
+          ctx.textAlign = 'left';
+          const vocalDb = vocalRms > 0.001 ? `${(20 * Math.log10(vocalRms)).toFixed(1)} dB` : '-inf dB';
+          ctx.fillText(`VOCAL ENERGY: ${vocalDb} | RMS: ${(vocalRms * 100).toFixed(1)}%`, 16, 28);
         }
       } else {
         // Idle animation when audio is not playing
@@ -329,6 +387,19 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
           >
             <Activity className="w-3.5 h-3.5" />
             <span className="text-[11px] font-mono">Scope</span>
+          </button>
+
+          <button
+            onClick={() => setMode('vocal')}
+            className={`px-2.5 py-1 rounded-md transition-colors flex items-center space-x-1 ${
+              mode === 'vocal'
+                ? 'bg-white text-black font-bold shadow-mono-glow'
+                : 'text-zinc-400 hover:text-white'
+            }`}
+            title="Dedicated Vocal Waveform"
+          >
+            <Mic className="w-3.5 h-3.5" />
+            <span className="text-[11px] font-mono">Vocals</span>
           </button>
 
           {trackMetadata?.hasVideo && (

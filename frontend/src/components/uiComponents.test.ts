@@ -210,10 +210,13 @@ describe('UI Studio Deck Components', () => {
           duration: 215,
           isLooping: true,
           isReady: true,
+          isDucking: true,
+          duckingReduction: 0.35,
           onPlayToggle: vi.fn(),
           onSeek: vi.fn(),
           onReset: vi.fn(),
           onLoopToggle: vi.fn(),
+          onDuckingToggle: vi.fn(),
         })
       );
 
@@ -222,9 +225,11 @@ describe('UI Studio Deck Components', () => {
       expect(html).toContain('CUDA GPU');
       expect(html).toContain('12ms');
       expect(html).toContain('Loop Enabled');
+      expect(html).toMatch(/DUCKING.*ON/);
+      expect(html).toContain('VOCALS WAVEFORM');
     });
 
-    it('renders playing pause button state', () => {
+    it('renders playing pause button state and ducking off state', () => {
       const html = renderToString(
         React.createElement(MasterControls, {
           isPlaying: true,
@@ -232,16 +237,20 @@ describe('UI Studio Deck Components', () => {
           duration: 180,
           isLooping: false,
           isReady: true,
+          isDucking: false,
+          duckingReduction: 1.0,
           onPlayToggle: vi.fn(),
           onSeek: vi.fn(),
           onReset: vi.fn(),
           onLoopToggle: vi.fn(),
+          onDuckingToggle: vi.fn(),
         })
       );
 
       expect(html).toContain('Pause Playback');
       expect(html).toContain('0:00');
       expect(html).toContain('3:00');
+      expect(html).toMatch(/DUCKING.*OFF/);
     });
   });
 });
