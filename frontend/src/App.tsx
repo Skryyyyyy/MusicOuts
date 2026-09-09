@@ -398,9 +398,9 @@ export const App: React.FC = () => {
       />
 
       {/* 2. Main Studio Workspace (Dedicated Page Views) */}
-      <main className="flex-1 p-3 flex flex-col max-w-[1920px] w-full mx-auto overflow-hidden">
+      <main className="flex-1 p-3 flex flex-col max-w-[1920px] w-full mx-auto overflow-hidden relative">
         {/* Page 1: Multi-track Arrangement Window */}
-        {currentView === "arrangement" && (
+        <div className={`flex-1 h-full min-h-[500px] flex flex-col ${currentView === "arrangement" ? "block" : "hidden"}`}>
           <ArrangementView
             audioGraph={audioGraphRef.current}
             trackMetadata={trackMetadata}
@@ -417,10 +417,10 @@ export const App: React.FC = () => {
             onStemPanChange={handleStemPanChange}
             className="flex-1 h-full min-h-[500px]"
           />
-        )}
+        </div>
 
         {/* Page 2: Full Studio MixConsole Desk */}
-        {currentView === "mixer" && (
+        <div className={`flex-1 h-full min-h-[500px] flex flex-col ${currentView === "mixer" ? "block" : "hidden"}`}>
           <MixConsoleView
             audioGraph={audioGraphRef.current}
             stemStates={stems}
@@ -439,10 +439,10 @@ export const App: React.FC = () => {
             onDuckingToggle={handleDuckingToggle}
             className="flex-1 h-full min-h-[500px]"
           />
-        )}
+        </div>
 
         {/* Page 3: Vision AI & Gesture Lab */}
-        {currentView === "gesture" && (
+        <div className={`flex-1 h-full min-h-[500px] flex flex-col ${currentView === "gesture" ? "block" : "hidden"}`}>
           <GestureLabView
             gestureTracker={gestureTrackerRef.current}
             gestureState={gestureState}
@@ -451,10 +451,10 @@ export const App: React.FC = () => {
             onGestureStateChange={handleGestureStateChange}
             className="flex-1 h-full min-h-[500px]"
           />
-        )}
+        </div>
 
         {/* Page 4: Audio-Reactive Visual Stage */}
-        {currentView === "visualizer" && (
+        <div className={`flex-1 h-full min-h-[500px] flex flex-col ${currentView === "visualizer" ? "block" : "hidden"}`}>
           <VisualStageView
             audioGraph={audioGraphRef.current}
             trackMetadata={trackMetadata}
@@ -462,10 +462,10 @@ export const App: React.FC = () => {
             isPlaying={isPlaying}
             className="flex-1 h-full min-h-[500px]"
           />
-        )}
+        </div>
 
         {/* Page 5: Neural Demixing & Media Ingestion Lab */}
-        {currentView === "ingestion" && (
+        <div className={`flex-1 h-full min-h-[500px] flex flex-col ${currentView === "ingestion" ? "block" : "hidden"}`}>
           <DemixLabView
             trackMetadata={trackMetadata}
             processStatus={processStatus}
@@ -473,7 +473,7 @@ export const App: React.FC = () => {
             onStatusChange={setProcessStatus}
             className="flex-1 h-full min-h-[500px]"
           />
-        )}
+        </div>
       </main>
 
       {/* 3. Studio Status Bar Footer */}

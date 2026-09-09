@@ -73,6 +73,10 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
       // Handle responsive resize
       const rect = canvas.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) {
+        animId = requestAnimationFrame(render);
+        return;
+      }
       const dpr = window.devicePixelRatio || 1;
       const targetWidth = Math.round(rect.width * dpr);
       const targetHeight = Math.round(rect.height * dpr);

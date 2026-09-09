@@ -187,6 +187,7 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
       const rect = canvas.getBoundingClientRect();
       const width = rect.width;
       const height = rect.height;
+      if (width === 0 || height === 0) continue;
 
       if (canvas.width !== Math.round(width * dpr) || canvas.height !== Math.round(height * dpr)) {
         canvas.width = Math.round(width * dpr);
