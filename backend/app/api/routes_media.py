@@ -15,67 +15,8 @@ router = APIRouter(prefix="/media", tags=["media"])
 VALID_STEM_NAMES = {"vocals", "drums", "bass", "other"}
 
 
-@router.get("/stems/{track_id}/{stem_name}")
-def get_stem_audio(track_id: str, stem_name: str):
-    """
-    Streams separated audio stem (vocals, drums, bass, other) with HTTP Range support.
-    """
-    # Normalize stem name: strip extension if provided (e.g. 'vocals.wav' -> 'vocals')
-    clean_stem = Path(stem_name).stem.lower()
-
-    if clean_stem not in VALID_STEM_NAMES:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid stem name '{stem_name}'. Valid stems are: {sorted(list(VALID_STEM_NAMES))}",
-        )
-
-    track_stems_dir = STEMS_DIR / track_id
-    matched_path: Optional[Path] = None
-
-    # Check for direct files in stem directory
-    for ext in (".wav", ".mp3", ".flac", ".ogg", ".m4a"):
-        candidate = track_stems_dir / f"{clean_stem}{ext}"
-        if candidate.exists() and candidate.is_file() and candidate.stat().st_size > 0:
-            matched_path = candidate
-            break
-
-    # Fallback to manifest if direct path not found
-    if not matched_path:
-        cached = get_cached_stems(track_id)
-        if cached:
-            path_attr = f"{clean_stem}_path"
-            target_path_str = getattr(cached, path_attr, None)
-            if target_path_str:
-                candidate = Path(target_path_str)
-                if candidate.exists() and candidate.is_file() and candidate.stat().st_size > 0:
-                    matched_path = candidate
-
-    if not matched_path or not matched_path.exists():
-        raise HTTPException(
-            status_code=404,
-            detail=f"Stem '{clean_stem}' not found for track '{track_id}'",
-        )
-
-    # Determine media type
-    ext = matched_path.suffix.lower()
-    media_type_map = {
-        ".wav": "audio/wav",
-        ".mp3": "audio/mpeg",
-        ".flac": "audio/flac",
-        ".ogg": "audio/ogg",
-        ".m4a": "audio/mp4",
-    }
-    media_type = media_type_map.get(ext, "audio/wav")
-
-    return FileResponse(
-        path=matched_path,
-        media_type=media_type,
-        filename=f"{clean_stem}{ext}",
-        headers={"Accept-Ranges": "bytes"},
-    )
-
-
 @router.get("/video/{track_id}")
+@router.get("/{track_id}/video")
 def get_source_video(track_id: str):
     """
     Streams muted source video file (MP4/WebM) with HTTP Range support.
@@ -114,5 +55,64 @@ def get_source_video(track_id: str):
         path=matched_video,
         media_type=media_type,
         filename=f"{track_id}_video{ext}",
+        headers={"Accept-Ranges": "bytes"},
+    )
+
+
+@router.get("/stems/{track_id}/{stem_name}")
+@router.get("/{track_id}/{stem_name}")
+def get_stem_audio(track_id: str, stem_name: str):
+    """
+    Streams separated audio stem (vocals, drums, bass, other) with HTTP Range support.
+    """
+    clean_stem = Path(stem_name).stem.lower()
+
+    if clean_stem not in VALID_STEM_NAMES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid stem name '{stem_name}'. Valid stems are: {sorted(list(VALID_STEM_NAMES))}",
+        )
+
+    track_stems_dir = STEMS_DIR / track_id
+    matched_path: Optional[Path] = None
+
+    # Check for direct files in stem directory
+    for ext in (".wav", ".mp3", ".flac", ".ogg", ".m4a"):
+        candidate = track_stems_dir / f"{clean_stem}{ext}"
+        if candidate.exists() and candidate.is_file() and candidate.stat().st_size > 0:
+            matched_path = candidate
+            break
+
+    # Fallback to manifest if direct path not found
+    if not matched_path:
+        cached = get_cached_stems(track_id)
+        if cached:
+            path_attr = f"{clean_stem}_path"
+            target_path_str = getattr(cached, path_attr, None)
+            if target_path_str:
+                candidate = Path(target_path_str)
+                if candidate.exists() and candidate.is_file() and candidate.stat().st_size > 0:
+                    matched_path = candidate
+
+    if not matched_path or not matched_path.exists():
+        raise HTTPException(
+            status_code=404,
+            detail=f"Stem '{clean_stem}' not found for track '{track_id}'",
+        )
+
+    ext = matched_path.suffix.lower()
+    media_type_map = {
+        ".wav": "audio/wav",
+        ".mp3": "audio/mpeg",
+        ".flac": "audio/flac",
+        ".ogg": "audio/ogg",
+        ".m4a": "audio/mp4",
+    }
+    media_type = media_type_map.get(ext, "audio/wav")
+
+    return FileResponse(
+        path=matched_path,
+        media_type=media_type,
+        filename=f"{clean_stem}{ext}",
         headers={"Accept-Ranges": "bytes"},
     )

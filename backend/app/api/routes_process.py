@@ -288,6 +288,8 @@ async def process_upload(file: UploadFile = File(...)):
 
 
 @router.get("/status/{task_id}")
+@router.get("/{task_id}/events")
+@router.get("/events/{task_id}")
 async def get_task_status_sse(task_id: str, request: Request):
     """
     Server-Sent Events (SSE) live progress streaming endpoint for a given task_id.
