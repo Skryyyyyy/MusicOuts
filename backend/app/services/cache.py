@@ -6,7 +6,7 @@ from typing import Optional
 from ..config import STEMS_DIR
 from ..schemas.models import StemResult
 
-logger = logging.getLogger("walkouts.cache")
+logger = logging.getLogger("musicouts.cache")
 
 STEM_NAMES = ("vocals", "drums", "bass", "other")
 SUPPORTED_EXTENSIONS = (".wav", ".mp3")

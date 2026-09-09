@@ -5,8 +5,8 @@ from backend.app.api import media_router, process_router
 from backend.app.config import CORS_ORIGINS, DEVICE, get_device_info
 
 app = FastAPI(
-    title="WalkOuts API",
-    description="Backend API for WalkOuts - Gesture Music Stem Controller",
+    title="MusicOuts API",
+    description="Backend API for MusicOuts - Spatial Gesture AI Music Workstation",
     version="0.1.0",
 )
 
@@ -27,7 +27,7 @@ app.include_router(media_router, prefix="/api")
 @app.get("/")
 def root():
     return {
-        "name": "WalkOuts API",
+        "name": "MusicOuts API",
         "version": "0.1.0",
         "status": "online",
         "docs_url": "/docs",

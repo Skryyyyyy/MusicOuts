@@ -8,7 +8,7 @@ from fastapi.responses import FileResponse
 from backend.app.config import DOWNLOADS_DIR, STEMS_DIR
 from backend.app.services.cache import get_cached_stems
 
-logger = logging.getLogger("walkouts.api.media")
+logger = logging.getLogger("musicouts.api.media")
 
 router = APIRouter(prefix="/media", tags=["media"])
 

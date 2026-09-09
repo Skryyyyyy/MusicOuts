@@ -1,5 +1,5 @@
 /**
- * Core type definitions for WalkOuts Gesture Music Stem Mixer
+ * Core type definitions for MusicOuts Gesture Music Stem Mixer
  */
 
 export type StemType = 'vocals' | 'drums' | 'bass' | 'other';

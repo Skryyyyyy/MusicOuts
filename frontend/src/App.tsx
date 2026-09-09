@@ -283,7 +283,7 @@ export const App: React.FC = () => {
           <div>
             <div className="flex items-center space-x-2">
               <span className="font-extrabold text-lg tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-white via-zinc-200 to-zinc-400 font-mono">
-                WALKOUTS
+                MUSICOUTS
               </span>
               <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-white/10 text-zinc-200 border border-white/20">
                 v0.1.0-MONO
@@ -444,7 +444,7 @@ export const App: React.FC = () => {
         <div className="flex items-center space-x-4">
           <span>Dual Fist Kill Switch: {gestureState.isDualFist ? 'ACTIVE' : 'READY'}</span>
           <span className="text-deck-border">|</span>
-          <span className="text-white font-medium">WalkOuts Studio Deck</span>
+          <span className="text-white font-medium">MusicOuts Studio Deck</span>
         </div>
       </footer>
     </div>

@@ -23,7 +23,7 @@ from backend.app.services.downloader import (
 from backend.app.services.separator import separate_audio_stems
 from backend.app.services.task_manager import task_manager
 
-logger = logging.getLogger("walkouts.api.process")
+logger = logging.getLogger("musicouts.api.process")
 
 router = APIRouter(prefix="/process", tags=["process"])
 

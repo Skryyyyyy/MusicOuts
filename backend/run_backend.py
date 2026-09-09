@@ -10,5 +10,5 @@ if str(PROJECT_ROOT) not in sys.path:
 from backend.app.config import HOST, PORT
 
 if __name__ == "__main__":
-    print(f"Starting WalkOuts Backend on {HOST}:{PORT} ...")
+    print(f"Starting MusicOuts Backend on {HOST}:{PORT} ...")
     uvicorn.run("backend.app.main:app", host=HOST, port=PORT, reload=True)

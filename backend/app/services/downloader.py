@@ -11,7 +11,7 @@ import yt_dlp
 from backend.app.config import DOWNLOADS_DIR
 from backend.app.schemas.models import MediaInfo
 
-logger = logging.getLogger("walkouts.downloader")
+logger = logging.getLogger("musicouts.downloader")
 
 # Ensure imageio_ffmpeg path is registered in environment if available
 try:

@@ -6,7 +6,7 @@ from typing import Dict, List, Optional, Tuple
 
 from backend.app.schemas.models import ProcessStatusEvent, StemResult
 
-logger = logging.getLogger("walkouts.task_manager")
+logger = logging.getLogger("musicouts.task_manager")
 
 
 class TaskState:

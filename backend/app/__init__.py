@@ -1,1 +1,1 @@
-"""WalkOuts Backend Application Package"""
+"""MusicOuts Backend Application Package"""

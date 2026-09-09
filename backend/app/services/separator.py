@@ -22,7 +22,7 @@ from ..config import (
 from ..schemas.models import StemResult
 from .cache import get_cached_stems, save_stem_manifest
 
-logger = logging.getLogger("walkouts.separator")
+logger = logging.getLogger("musicouts.separator")
 
 # Ensure imageio_ffmpeg path is in PATH if available
 try:
