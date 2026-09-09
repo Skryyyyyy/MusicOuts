@@ -152,6 +152,14 @@ export class AudioGraphEngine {
   private clips: AudioClip[] = [];
   private clipSourceNodes: AudioBufferSourceNode[] = [];
 
+  // Per-Stem Independent Timeline Offsets (Vocals, Drums, Bass, Other)
+  private stemOffsets: Record<StemType, number> = {
+    vocals: 0,
+    drums: 0,
+    bass: 0,
+    other: 0,
+  };
+
   // Callbacks
   private endedCallbacks: Set<() => void> = new Set();
 
@@ -564,7 +572,12 @@ export class AudioGraphEngine {
           }
         };
 
-        source.start(now, clampedOffset);
+        const stemOffset = Math.max(
+          0,
+          Math.min(this.duration, clampedOffset + (this.stemOffsets[stem] || 0))
+        );
+
+        source.start(now, stemOffset);
         channel.sourceNode = source;
       }
     }
@@ -582,7 +595,7 @@ export class AudioGraphEngine {
   }
 
   /**
-   * Seeks to a specific timestamp in seconds.
+   * Seeks the global timeline to a specific timestamp in seconds.
    */
   public seek(seconds: number): void {
     const target = Math.max(0, Math.min(seconds, this.duration));
@@ -592,6 +605,92 @@ export class AudioGraphEngine {
       this.pausedOffset = target;
       this.startOffset = target;
     }
+  }
+
+  /**
+   * Seeks ONLY a single stem track independently without moving or disturbing any other stem.
+   */
+  public seekStem(stem: StemType, targetSeconds: number): void {
+    const clamped = Math.max(0, Math.min(targetSeconds, this.duration));
+    const baseTime = this.isPlayingState
+      ? this.startOffset + (this.audioContext.currentTime - this.startTime)
+      : this.pausedOffset;
+
+    this.stemOffsets[stem] = clamped - baseTime;
+
+    if (this.isPlayingState) {
+      const channel = this.channels[stem];
+      if (channel.sourceNode) {
+        try {
+          channel.sourceNode.stop();
+          channel.sourceNode.disconnect();
+        } catch {
+          // Ignore
+        }
+        channel.sourceNode = null;
+      }
+
+      if (channel.buffer) {
+        const now = this.audioContext.currentTime;
+        const source = this.audioContext.createBufferSource();
+        source.buffer = channel.buffer;
+        source.loop = this.isLooping;
+        source.connect(channel.inputNode);
+
+        source.onended = () => {
+          if (channel.sourceNode === source) {
+            channel.sourceNode = null;
+          }
+        };
+
+        source.start(now, clamped);
+        channel.sourceNode = source;
+      }
+    }
+  }
+
+  /**
+   * Gets the exact current playback position of a specific stem (seconds).
+   */
+  public getStemTime(stem: StemType): number {
+    const baseTime = this.isPlayingState
+      ? this.startOffset + (this.audioContext.currentTime - this.startTime)
+      : this.pausedOffset;
+    const stemTime = baseTime + (this.stemOffsets[stem] || 0);
+    if (this.duration <= 0) return 0;
+    if (this.isLooping) {
+      return ((stemTime % this.duration) + this.duration) % this.duration;
+    }
+    return Math.max(0, Math.min(this.duration, stemTime));
+  }
+
+  /**
+   * Gets a snapshot of current playback timestamps for all 4 stems.
+   */
+  public getStemTimes(): Record<StemType, number> {
+    return {
+      vocals: this.getStemTime('vocals'),
+      drums: this.getStemTime('drums'),
+      bass: this.getStemTime('bass'),
+      other: this.getStemTime('other'),
+    };
+  }
+
+  /**
+   * Resets all per-stem offsets back to zero (re-aligns all playheads).
+   */
+  public resetStemOffsets(): void {
+    this.stemOffsets = { vocals: 0, drums: 0, bass: 0, other: 0 };
+    if (this.isPlayingState) {
+      this.play(this.getCurrentTime());
+    }
+  }
+
+  /**
+   * Returns current per-stem offset values in seconds.
+   */
+  public getStemOffsets(): Record<StemType, number> {
+    return { ...this.stemOffsets };
   }
 
   private stopActiveSources(): void {

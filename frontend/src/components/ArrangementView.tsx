@@ -139,8 +139,16 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
   });
 
   const [isScrubbing, setIsScrubbing] = useState<boolean>(false);
+  const [scrubbingStem, setScrubbingStem] = useState<StemType | null>(null);
+  const [isIndependentMode, setIsIndependentMode] = useState<boolean>(true);
   const [selectedClipId, setSelectedClipId] = useState<string | null>(null);
   const [showMediaPool, setShowMediaPool] = useState<boolean>(false);
+  const [stemTimes, setStemTimes] = useState<Record<StemType, number>>({
+    vocals: 0,
+    drums: 0,
+    bass: 0,
+    other: 0,
+  });
   const [vuLevels, setVuLevels] = useState<Record<StemType, number>>({
     vocals: 0,
     drums: 0,
@@ -148,9 +156,16 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
     other: 0,
   });
 
+  const stemLaneRefs = useRef<Record<StemType, HTMLDivElement | null>>({
+    vocals: null,
+    drums: null,
+    bass: null,
+    other: null,
+  });
+
   const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
 
-  // Real-time timeline scrubbing
+  // Real-time Global timeline scrubbing (Top Master Ruler)
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!timelineContainerRef.current) return;
     setIsScrubbing(true);
@@ -162,23 +177,57 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
     const rect = timelineContainerRef.current.getBoundingClientRect();
     const clickX = e.clientX - rect.left;
     const ratio = Math.max(0, Math.min(1, clickX / rect.width));
-    onSeek(ratio * (duration || 180));
+    const targetTime = ratio * (duration || 180);
+    onSeek(targetTime);
+  };
+
+  // Independent Per-Stem Timeline Scrubbing
+  const handleStemMouseDown = (stem: StemType, e: React.MouseEvent<HTMLDivElement>) => {
+    if (isIndependentMode) {
+      setScrubbingStem(stem);
+      updateStemSeekFromEvent(stem, e);
+    } else {
+      setIsScrubbing(true);
+      updateSeekFromEvent(e);
+    }
+  };
+
+  const updateStemSeekFromEvent = (stem: StemType, e: MouseEvent | React.MouseEvent) => {
+    const laneEl = stemLaneRefs.current[stem];
+    if (!laneEl) return;
+    const rect = laneEl.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const ratio = Math.max(0, Math.min(1, clickX / rect.width));
+    const targetSec = ratio * (duration || 180);
+
+    if (audioGraph) {
+      audioGraph.seekStem(stem, targetSec);
+    }
+    setStemTimes((prev) => ({
+      ...prev,
+      [stem]: targetSec,
+    }));
   };
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
-      if (isScrubbing) {
+      if (scrubbingStem) {
+        updateStemSeekFromEvent(scrubbingStem, e);
+      } else if (isScrubbing) {
         updateSeekFromEvent(e);
       }
     };
 
     const handleMouseUp = () => {
+      if (scrubbingStem) {
+        setScrubbingStem(null);
+      }
       if (isScrubbing) {
         setIsScrubbing(false);
       }
     };
 
-    if (isScrubbing) {
+    if (scrubbingStem || isScrubbing) {
       window.addEventListener('mousemove', handleMouseMove);
       window.addEventListener('mouseup', handleMouseUp);
     }
@@ -187,14 +236,17 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isScrubbing, duration]);
+  }, [scrubbingStem, isScrubbing, duration, audioGraph, isIndependentMode]);
 
-  // Real-time LED VU levels
+  // Sync real-time per-stem timestamps & LED VU levels
   useEffect(() => {
     let animId: number;
 
-    const updateVUs = () => {
+    const tick = () => {
       if (audioGraph && isPlaying) {
+        const times = audioGraph.getStemTimes();
+        setStemTimes(times);
+
         const nextLevels: Record<StemType, number> = {
           vocals: 0,
           drums: 0,
@@ -213,16 +265,26 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
           nextLevels[stem] = Math.min(1.0, rms * 2.8 * (stemStates[stem]?.volume || 1.0));
         }
         setVuLevels(nextLevels);
-      } else {
+      } else if (!isPlaying) {
+        if (audioGraph) {
+          setStemTimes(audioGraph.getStemTimes());
+        } else {
+          setStemTimes({
+            vocals: currentTime,
+            drums: currentTime,
+            bass: currentTime,
+            other: currentTime,
+          });
+        }
         setVuLevels({ vocals: 0, drums: 0, bass: 0, other: 0 });
       }
 
-      animId = requestAnimationFrame(updateVUs);
+      animId = requestAnimationFrame(tick);
     };
 
-    animId = requestAnimationFrame(updateVUs);
+    animId = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(animId);
-  }, [audioGraph, isPlaying, stemStates]);
+  }, [audioGraph, isPlaying, stemStates, currentTime]);
 
   // Render High-Definition Waveform Canvases for each Stem Track
   useEffect(() => {
@@ -385,7 +447,36 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
               <span>Stem Tracks</span>
             </div>
 
-            <div className="flex items-center space-x-1">
+            <div className="flex items-center space-x-1.5">
+              {/* Independent / Linked Mode Toggle Button */}
+              <button
+                onClick={() => setIsIndependentMode(!isIndependentMode)}
+                className={`flex items-center space-x-1 px-2 py-0.5 rounded text-[9px] border font-bold transition-all ${
+                  isIndependentMode
+                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-sm'
+                    : 'bg-cyan-600 text-white border-cyan-400'
+                }`}
+                title="Toggle Independent Stem Playhead Scrubbing vs Linked"
+              >
+                <Sliders className="w-2.5 h-2.5" />
+                <span>{isIndependentMode ? '⚡ INDEPENDENT BARS' : '🔗 LINKED'}</span>
+              </button>
+
+              {/* Re-align All Stem Offsets */}
+              {audioGraph && (
+                <button
+                  onClick={() => {
+                    audioGraph.resetStemOffsets();
+                    const now = audioGraph.getCurrentTime();
+                    setStemTimes({ vocals: now, drums: now, bass: now, other: now });
+                  }}
+                  className="flex items-center space-x-1 px-1.5 py-0.5 rounded text-[9px] bg-[#1a1b22] hover:bg-[#252834] text-zinc-400 hover:text-white border border-zinc-700 font-bold transition-all"
+                  title="Re-align all stem playheads back to sync"
+                >
+                  <span>↺ ALIGN</span>
+                </button>
+              )}
+
               {/* Slice Clip Tool Button */}
               {onSliceClip && (
                 <button
@@ -516,6 +607,8 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
           const state = stemStates[stem] || { volume: 1.0, muted: false, solo: false, pan: 0 };
           const vu = vuLevels[stem] || 0;
           const stemClips = clips.filter((c) => c.stem === stem);
+          const stemCurrentTime = stemTimes[stem] !== undefined ? stemTimes[stem] : currentTime;
+          const stemProgress = duration > 0 ? (stemCurrentTime / duration) * 100 : 0;
 
           const isLeftHandControlled = stem === 'vocals' && gestureState?.leftHand.present;
           const isRightHandControlled = stem !== 'vocals' && gestureState?.rightHand.present;
@@ -530,16 +623,21 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
                   style={{ backgroundColor: config.color }}
                 />
 
-                {/* Track Title & Badges */}
+                {/* Track Title, Routing & Badges */}
                 <div className="flex items-center justify-between pl-1.5">
                   <div className="flex items-center space-x-2">
                     <div className="p-1 rounded bg-[#101114] border border-[#262830]">
                       {config.icon}
                     </div>
                     <div>
-                      <h4 className="text-[11px] font-mono font-bold text-zinc-100 tracking-wide leading-none">
-                        {config.name}
-                      </h4>
+                      <div className="flex items-center space-x-1.5">
+                        <h4 className="text-[11px] font-mono font-bold text-zinc-100 tracking-wide leading-none">
+                          {config.name}
+                        </h4>
+                        <span className="text-[8px] font-mono font-bold px-1 py-0.2 rounded bg-black/60 border border-[#262830] text-zinc-300" style={{ color: config.color }}>
+                          {formatRulerTime(stemCurrentTime)}
+                        </span>
+                      </div>
                       <span className="text-[8px] font-mono text-zinc-500">
                         {config.routing}
                       </span>
@@ -620,9 +718,12 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
 
               {/* Right Column: Audio Clips Timeline Lane & Independent Laser Playhead */}
               <div
-                onMouseDown={handleMouseDown}
-                className="relative flex-1 bg-[#0a0b0d] cursor-pointer overflow-hidden p-1.5"
-                title={`Click or drag to seek across ${config.shortName} timeline`}
+                ref={(el) => (stemLaneRefs.current[stem] = el)}
+                onMouseDown={(e) => handleStemMouseDown(stem, e)}
+                className={`relative flex-1 bg-[#0a0b0d] overflow-hidden p-1.5 group ${
+                  scrubbingStem === stem ? 'cursor-grabbing' : 'cursor-pointer'
+                }`}
+                title={`Click or drag to seek ${config.shortName} independently (${formatRulerTime(stemCurrentTime)})`}
               >
                 <div
                   className="relative w-full h-full rounded border border-zinc-800/80 overflow-hidden"
@@ -697,10 +798,13 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
                     );
                   })}
 
-                  {/* Played Region Shading Overlay */}
+                  {/* Played Region Shading Overlay (Tracks Stem Progress Independently) */}
                   <div
-                    className="absolute top-0 bottom-0 left-0 bg-white/5 pointer-events-none border-r border-cyan-400/80 transition-all duration-75"
-                    style={{ width: `${progressPercent}%` }}
+                    className="absolute top-0 bottom-0 left-0 bg-white/5 pointer-events-none border-r transition-all duration-75"
+                    style={{
+                      width: `${stemProgress}%`,
+                      borderColor: config.color,
+                    }}
                   />
 
                   {/* Grid Lines Overlay */}
@@ -712,10 +816,19 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
 
                   {/* Independent Moving Playhead Laser Bar (Separate on each stem!) */}
                   <div
-                    className="absolute top-0 bottom-0 w-1 bg-cyan-400 shadow-[0_0_10px_rgba(6,182,212,1)] pointer-events-none z-20 transition-all duration-75"
-                    style={{ left: `calc(${progressPercent}% - 1px)` }}
+                    className="absolute top-0 bottom-0 w-1 pointer-events-none z-20 transition-all duration-75"
+                    style={{
+                      left: `calc(${stemProgress}% - 1px)`,
+                      backgroundColor: config.color,
+                      boxShadow: `0 0 10px ${config.color}`,
+                    }}
                   >
-                    <div className="w-1.5 h-3 bg-white -translate-x-[1px] rounded-full shadow-sm" />
+                    <div
+                      className="w-2 h-3.5 -translate-x-[2px] rounded-full shadow-md flex items-center justify-center text-[7px] font-bold text-black"
+                      style={{ backgroundColor: config.color }}
+                    >
+                      ▼
+                    </div>
                   </div>
 
                   {/* Default Track Info Tag */}
@@ -723,6 +836,7 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
                     <span style={{ color: config.color }}>●</span>
                     <span className="text-zinc-200">{trackMetadata?.title || 'DEMUCS_STEM'}</span>
                     <span className="text-zinc-500">[{config.shortName}.WAV]</span>
+                    <span className="font-mono text-cyan-300 ml-1 font-bold">[{formatRulerTime(stemCurrentTime)}]</span>
                   </div>
                 </div>
               </div>
