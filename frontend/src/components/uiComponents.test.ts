@@ -1,0 +1,247 @@
+import { describe, it, expect, vi } from 'vitest';
+import React from 'react';
+import { renderToString } from 'react-dom/server';
+
+import { GestureHUD } from './GestureHUD';
+import { MixerDeck } from './MixerDeck';
+import { VideoPlayer } from './VideoPlayer';
+import { UrlUploader } from './UrlUploader';
+import { MasterControls } from './MasterControls';
+import { StemType, StemState, GestureState, TrackMetadata } from '../types';
+import { DEFAULT_GESTURE_STATE } from '../engine/gestureTracker';
+
+const MOCK_STEM_STATES: Record<StemType, StemState> = {
+  vocals: { volume: 0.85, muted: false, solo: false, pan: 0.0 },
+  drums: { volume: 0.90, muted: false, solo: false, pan: 0.0 },
+  bass: { volume: 0.80, muted: false, solo: false, pan: 0.0 },
+  other: { volume: 0.75, muted: false, solo: false, pan: 0.0 },
+};
+
+const MOCK_TRACK: TrackMetadata = {
+  id: 'track-cyber-123',
+  title: 'Neon Cyber Anthem',
+  duration: 215,
+  hasVideo: true,
+  videoUrl: '/api/media/track-cyber-123/video',
+  stems: {
+    vocals: '/api/media/track-cyber-123/vocals',
+    drums: '/api/media/track-cyber-123/drums',
+    bass: '/api/media/track-cyber-123/bass',
+    other: '/api/media/track-cyber-123/other',
+  },
+};
+
+describe('UI Studio Deck Components', () => {
+  describe('GestureHUD Component', () => {
+    it('renders inactive standby state when isEnabled is false', () => {
+      const html = renderToString(
+        React.createElement(GestureHUD, {
+          gestureTracker: null,
+          gestureState: DEFAULT_GESTURE_STATE,
+          isEnabled: false,
+          onToggleEnabled: vi.fn(),
+        })
+      );
+
+      expect(html).toContain('Vision HUD / Skeleton Tracker');
+      expect(html).toContain('Webcam Gesture Tracking Inactive');
+      expect(html).toContain('Activate Spatial Vision');
+    });
+
+    it('renders telemetry badges when isEnabled is true and active gestures present', () => {
+      const activeState: GestureState = {
+        leftHand: { present: true, height: 0.82, isPinching: true, isFist: false, x: 0.3, y: 0.18 },
+        rightHand: { present: true, height: 0.65, isPinching: false, isFist: false, x: 0.85, y: 0.35 },
+        isDualFist: false,
+        djFilterCutoff: 4500,
+        djFilterType: 'highpass',
+      };
+
+      const html = renderToString(
+        React.createElement(GestureHUD, {
+          gestureTracker: null,
+          gestureState: activeState,
+          isEnabled: true,
+          onToggleEnabled: vi.fn(),
+        })
+      );
+
+      expect(html).toContain('LEFT HAND');
+      expect(html).toContain('VOCALS:');
+      expect(html).toContain('82%');
+      expect(html).toContain('SOLO ACTIVE (PINCH)');
+      expect(html).toContain('RIGHT HAND');
+      expect(html).toContain('INSTRUMENTS:');
+      expect(html).toContain('65%');
+      expect(html).toMatch(/4\.5.*kHz/);
+      expect(html).toContain('HP');
+    });
+
+    it('renders dual fist master kill switch banner when triggered', () => {
+      const killState: GestureState = {
+        leftHand: { present: true, height: 0.5, isPinching: false, isFist: true, x: 0.3, y: 0.5 },
+        rightHand: { present: true, height: 0.5, isPinching: false, isFist: true, x: 0.7, y: 0.5 },
+        isDualFist: true,
+        djFilterCutoff: 20000,
+        djFilterType: 'lowpass',
+      };
+
+      const html = renderToString(
+        React.createElement(GestureHUD, {
+          gestureTracker: null,
+          gestureState: killState,
+          isEnabled: true,
+          onToggleEnabled: vi.fn(),
+        })
+      );
+
+      expect(html).toContain('KILL SWITCH ACTIVE (DUAL FIST)');
+    });
+  });
+
+  describe('MixerDeck Component', () => {
+    it('renders 4 stem channel strips + 1 master channel strip', () => {
+      const html = renderToString(
+        React.createElement(MixerDeck, {
+          audioGraph: null,
+          stemStates: MOCK_STEM_STATES,
+          masterVolume: 1.0,
+          djFilterCutoff: 20000,
+          djFilterType: 'lowpass',
+          djFilterQ: 1.0,
+          onStemVolumeChange: vi.fn(),
+          onStemMuteToggle: vi.fn(),
+          onStemSoloToggle: vi.fn(),
+          onStemPanChange: vi.fn(),
+          onMasterVolumeChange: vi.fn(),
+        })
+      );
+
+      expect(html).toContain('4-Channel Stem Mixer Deck');
+      expect(html).toContain('Vocals');
+      expect(html).toContain('Drums');
+      expect(html).toContain('Bass');
+      expect(html).toContain('Other');
+      expect(html).toContain('MASTER');
+      expect(html).toContain('DJ Biquad Filter Sweep');
+      expect(html).toMatch(/LOWPASS.*MODE/);
+      expect(html).toMatch(/20\.00.*kHz/);
+    });
+
+    it('reflects muted and soloed visual button styles', () => {
+      const customStates: Record<StemType, StemState> = {
+        ...MOCK_STEM_STATES,
+        vocals: { volume: 0.8, muted: false, solo: true, pan: -0.2 },
+        drums: { volume: 0.5, muted: true, solo: false, pan: 0.5 },
+      };
+
+      const html = renderToString(
+        React.createElement(MixerDeck, {
+          audioGraph: null,
+          stemStates: customStates,
+          masterVolume: 0.8,
+          djFilterCutoff: 12000,
+          djFilterType: 'highpass',
+          djFilterQ: 2.5,
+          onStemVolumeChange: vi.fn(),
+          onStemMuteToggle: vi.fn(),
+          onStemSoloToggle: vi.fn(),
+          onStemPanChange: vi.fn(),
+          onMasterVolumeChange: vi.fn(),
+        })
+      );
+
+      expect(html).toMatch(/HIGHPASS.*MODE/);
+      expect(html).toMatch(/12\.00.*kHz/);
+      expect(html).toMatch(/Q:.*2\.5/);
+      expect(html).toContain('L20');
+      expect(html).toContain('R50');
+    });
+  });
+
+  describe('VideoPlayer Component', () => {
+    it('renders visualizer mode selector buttons and canvas stage', () => {
+      const html = renderToString(
+        React.createElement(VideoPlayer, {
+          audioGraph: null,
+          trackMetadata: MOCK_TRACK,
+          currentTime: 42,
+          isPlaying: true,
+        })
+      );
+
+      expect(html).toContain('Reactive Audio Stage');
+      expect(html).toContain('Neon Cyber Anthem');
+      expect(html).toContain('Bars');
+      expect(html).toContain('Radial');
+      expect(html).toContain('Scope');
+      expect(html).toContain('Video');
+      expect(html).toContain('Vocals');
+      expect(html).toContain('Drums');
+      expect(html).toContain('Bass');
+      expect(html).toContain('Other');
+    });
+  });
+
+  describe('UrlUploader Component', () => {
+    it('renders YouTube input, file dropzone, and sample presets', () => {
+      const html = renderToString(
+        React.createElement(UrlUploader, {
+          onTrackLoaded: vi.fn(),
+          onStatusChange: vi.fn(),
+        })
+      );
+
+      expect(html).toContain('Demucs Neural Stem Ingestion');
+      expect(html).toContain('Paste YouTube music or video URL...');
+      expect(html).toContain('Demix Stems');
+      expect(html).toMatch(/Drag &amp; drop audio file/);
+      expect(html).toContain('Synthwave Cyber Anthem');
+      expect(html).toContain('Future Bass Drop');
+    });
+  });
+
+  describe('MasterControls Component', () => {
+    it('renders transport buttons, seek bar, time format, and hardware indicators', () => {
+      const html = renderToString(
+        React.createElement(MasterControls, {
+          isPlaying: false,
+          currentTime: 85,
+          duration: 215,
+          isLooping: true,
+          isReady: true,
+          onPlayToggle: vi.fn(),
+          onSeek: vi.fn(),
+          onReset: vi.fn(),
+          onLoopToggle: vi.fn(),
+        })
+      );
+
+      expect(html).toContain('1:25'); // 85s
+      expect(html).toContain('3:35'); // 215s
+      expect(html).toContain('CUDA GPU');
+      expect(html).toContain('12ms');
+      expect(html).toContain('Loop Enabled');
+    });
+
+    it('renders playing pause button state', () => {
+      const html = renderToString(
+        React.createElement(MasterControls, {
+          isPlaying: true,
+          currentTime: 0,
+          duration: 180,
+          isLooping: false,
+          isReady: true,
+          onPlayToggle: vi.fn(),
+          onSeek: vi.fn(),
+          onReset: vi.fn(),
+          onLoopToggle: vi.fn(),
+        })
+      );
+
+      expect(html).toContain('Pause Playback');
+      expect(html).toContain('0:00');
+      expect(html).toContain('3:00');
+    });
+  });
+});

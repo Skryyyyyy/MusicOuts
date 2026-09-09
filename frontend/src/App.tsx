@@ -1,21 +1,14 @@
-import React, { useState } from 'react';
-import { 
-  Sliders, 
-  Video, 
-  Activity, 
-  Hand, 
-  Sparkles, 
-  Layers, 
-  Volume2, 
-  Play, 
-  Pause, 
-  RotateCcw,
-  Youtube,
-  Upload,
-  Cpu,
-  Radio
-} from 'lucide-react';
-import { StemType, STEM_TYPES, StemState, GestureState, ProcessStatus } from './types';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { Radio, Layers, Activity, Eye } from 'lucide-react';
+import { StemType, STEM_TYPES, StemState, GestureState, ProcessStatus, TrackMetadata } from './types';
+import { AudioGraphEngine } from './engine/audioGraph';
+import { GestureTracker, DEFAULT_GESTURE_STATE } from './engine/gestureTracker';
+
+import { GestureHUD } from './components/GestureHUD';
+import { MixerDeck } from './components/MixerDeck';
+import { VideoPlayer } from './components/VideoPlayer';
+import { UrlUploader } from './components/UrlUploader';
+import { MasterControls } from './components/MasterControls';
 
 const INITIAL_STEM_STATES: Record<StemType, StemState> = {
   vocals: { volume: 0.85, muted: false, solo: false, pan: 0.0 },
@@ -24,377 +17,411 @@ const INITIAL_STEM_STATES: Record<StemType, StemState> = {
   other: { volume: 0.75, muted: false, solo: false, pan: 0.0 },
 };
 
-const STEM_COLORS: Record<StemType, { text: string; bg: string; border: string; glow: string; accent: string }> = {
-  vocals: { 
-    text: 'text-neon-cyan', 
-    bg: 'bg-cyan-500/10', 
-    border: 'border-neon-cyan/40', 
-    glow: 'shadow-neon-cyan',
-    accent: '#00f3ff' 
-  },
-  drums: { 
-    text: 'text-neon-magenta', 
-    bg: 'bg-pink-500/10', 
-    border: 'border-neon-magenta/40', 
-    glow: 'shadow-neon-magenta',
-    accent: '#ff007f' 
-  },
-  bass: { 
-    text: 'text-neon-yellow', 
-    bg: 'bg-yellow-500/10', 
-    border: 'border-neon-yellow/40', 
-    glow: 'shadow-neon-yellow',
-    accent: '#ffe600' 
-  },
-  other: { 
-    text: 'text-neon-green', 
-    bg: 'bg-emerald-500/10', 
-    border: 'border-neon-green/40', 
-    glow: 'shadow-neon-green',
-    accent: '#00ff66' 
-  },
-};
-
 export const App: React.FC = () => {
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime] = useState(0);
-  const [duration] = useState(184); // 3:04
+  // Audio Engine & Gesture Tracker references
+  const audioGraphRef = useRef<AudioGraphEngine | null>(null);
+  const gestureTrackerRef = useRef<GestureTracker | null>(null);
+
+  // Studio State
+  const [trackMetadata, setTrackMetadata] = useState<TrackMetadata | null>(null);
+  const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  const [currentTime, setCurrentTime] = useState<number>(0);
+  const [duration, setDuration] = useState<number>(180);
+  const [isLooping, setIsLooping] = useState<boolean>(false);
+  const [masterVolume, setMasterVolume] = useState<number>(1.0);
+
+  // Stems State
   const [stems, setStems] = useState<Record<StemType, StemState>>(INITIAL_STEM_STATES);
-  const [activeTab, setActiveTab] = useState<'mixer' | 'camera' | 'hud'>('mixer');
 
-  // Simulated gesture telemetry
-  const gestureState: GestureState = {
-    leftHand: { present: true, height: 0.75, isPinching: false, isFist: false, x: 0.25, y: 0.35 },
-    rightHand: { present: true, height: 0.85, isPinching: true, isFist: false, x: 0.75, y: 0.20 },
-    isDualFist: false,
-    djFilterCutoff: 18500,
-    djFilterType: 'lowpass',
-  };
+  // DJ Filter State
+  const [djFilterCutoff, setDjFilterCutoff] = useState<number>(20000);
+  const [djFilterType, setDjFilterType] = useState<'lowpass' | 'highpass'>('lowpass');
+  const [djFilterQ, setDjFilterQ] = useState<number>(1.0);
 
-  const processStatus: ProcessStatus = {
+  // Vision & Gesture Telemetry State
+  const [isGestureEnabled, setIsGestureEnabled] = useState<boolean>(false);
+  const [gestureState, setGestureState] = useState<GestureState>(DEFAULT_GESTURE_STATE);
+  const [activeStageTab, setActiveStageTab] = useState<'dual' | 'visualizer' | 'hud'>('dual');
+
+  // Processing SSE Status
+  const [processStatus, setProcessStatus] = useState<ProcessStatus>({
     stage: 'ready',
     progress: 100,
-    message: 'Demucs 4-Stem Model Ready',
+    message: 'Demucs HT Hybrid Transformer Ready',
+  });
+
+  // Initialize AudioGraphEngine and GestureTracker on mount
+  useEffect(() => {
+    const audioGraph = new AudioGraphEngine();
+    audioGraphRef.current = audioGraph;
+
+    const gestureTracker = new GestureTracker();
+    gestureTrackerRef.current = gestureTracker;
+
+    // Initialize MediaPipe Vision WASM assets asynchronously
+    gestureTracker.initialize().catch((err) => {
+      console.warn('GestureTracker initialize background notice:', err);
+    });
+
+    // Register onEnded callback
+    const unregisterEnded = audioGraph.onEnded(() => {
+      setIsPlaying(false);
+      setCurrentTime(audioGraph.getCurrentTime());
+    });
+
+    return () => {
+      unregisterEnded();
+      audioGraph.dispose();
+      gestureTracker.dispose();
+    };
+  }, []);
+
+  // Real-time animation playback clock loop
+  useEffect(() => {
+    let animId: number;
+
+    const tick = () => {
+      const audioGraph = audioGraphRef.current;
+      if (audioGraph) {
+        if (audioGraph.isPlaying()) {
+          setCurrentTime(audioGraph.getCurrentTime());
+          setDuration(audioGraph.getDuration() || 180);
+        }
+      }
+      animId = requestAnimationFrame(tick);
+    };
+
+    animId = requestAnimationFrame(tick);
+    return () => {
+      cancelAnimationFrame(animId);
+    };
+  }, []);
+
+  // Handle gesture telemetry frame updates and apply dynamic audio modulation
+  const handleGestureStateChange = useCallback((state: GestureState) => {
+    setGestureState(state);
+    const audioGraph = audioGraphRef.current;
+    if (!audioGraph) return;
+
+    // 1. Dual Fist Kill Switch
+    if (state.isDualFist) {
+      audioGraph.setMasterVolume(0.0, 0.02);
+      return;
+    } else {
+      audioGraph.setMasterVolume(masterVolume, 0.05);
+    }
+
+    // 2. Left Hand Modulation (Vocals Level & Solo/Mute)
+    if (state.leftHand.present) {
+      const vocalVol = state.leftHand.height;
+      audioGraph.setStemVolume('vocals', vocalVol, 0.04);
+      setStems((prev) => ({
+        ...prev,
+        vocals: {
+          ...prev.vocals,
+          volume: vocalVol,
+          solo: state.leftHand.isPinching,
+          muted: state.leftHand.isFist,
+        },
+      }));
+      audioGraph.setStemSolo('vocals', state.leftHand.isPinching, 0.04);
+      audioGraph.setStemMute('vocals', state.leftHand.isFist, 0.04);
+    }
+
+    // 3. Right Hand Modulation (Instruments Level & DJ Filter Sweep)
+    if (state.rightHand.present) {
+      const otherVol = state.rightHand.height;
+      audioGraph.setStemVolume('other', otherVol, 0.04);
+      setStems((prev) => ({
+        ...prev,
+        other: { ...prev.other, volume: otherVol },
+      }));
+
+      // DJ Filter Sweep
+      setDjFilterCutoff(state.djFilterCutoff);
+      setDjFilterType(state.djFilterType);
+      audioGraph.setDjFilter(state.djFilterCutoff, state.djFilterType, djFilterQ, 0.04);
+    }
+  }, [masterVolume, djFilterQ]);
+
+  // Track Ingestion Handler
+  const handleTrackLoaded = async (loadedTrack: TrackMetadata) => {
+    setTrackMetadata(loadedTrack);
+    setDuration(loadedTrack.duration);
+
+    const audioGraph = audioGraphRef.current;
+    if (audioGraph) {
+      try {
+        await audioGraph.loadStems(loadedTrack.id, loadedTrack.stems);
+        // Apply initial stem states
+        for (const stem of STEM_TYPES) {
+          audioGraph.setStemVolume(stem, stems[stem].volume, 0);
+          audioGraph.setStemPan(stem, stems[stem].pan, 0);
+          audioGraph.setStemMute(stem, stems[stem].muted, 0);
+          audioGraph.setStemSolo(stem, stems[stem].solo, 0);
+        }
+        audioGraph.setMasterVolume(masterVolume, 0);
+        audioGraph.setDjFilter(djFilterCutoff, djFilterType, djFilterQ, 0);
+      } catch (err) {
+        console.error('Failed to load stems into Web Audio Graph:', err);
+      }
+    }
   };
 
-  const formatTime = (secs: number) => {
-    const m = Math.floor(secs / 60);
-    const s = Math.floor(secs % 60);
-    return `${m}:${s < 10 ? '0' : ''}${s}`;
+  // Play / Pause Toggle
+  const handlePlayToggle = async () => {
+    const audioGraph = audioGraphRef.current;
+    if (!audioGraph) return;
+
+    if (isPlaying) {
+      audioGraph.pause();
+      setIsPlaying(false);
+    } else {
+      await audioGraph.play();
+      setIsPlaying(true);
+    }
   };
 
-  const handleVolumeChange = (stem: StemType, val: number) => {
+  // Seek Timeline
+  const handleSeek = (seconds: number) => {
+    const audioGraph = audioGraphRef.current;
+    if (!audioGraph) return;
+
+    audioGraph.seek(seconds);
+    setCurrentTime(seconds);
+  };
+
+  // Reset to Start
+  const handleReset = () => {
+    handleSeek(0);
+  };
+
+  // Loop Toggle
+  const handleLoopToggle = () => {
+    const audioGraph = audioGraphRef.current;
+    const nextLoop = !isLooping;
+    setIsLooping(nextLoop);
+    if (audioGraph) {
+      audioGraph.setLoop(nextLoop);
+    }
+  };
+
+  // Mixer Deck Handlers
+  const handleStemVolumeChange = (stem: StemType, val: number) => {
     setStems((prev) => ({
       ...prev,
       [stem]: { ...prev[stem], volume: val },
     }));
+    audioGraphRef.current?.setStemVolume(stem, val);
   };
 
-  const toggleMute = (stem: StemType) => {
+  const handleStemPanChange = (stem: StemType, pan: number) => {
     setStems((prev) => ({
       ...prev,
-      [stem]: { ...prev[stem], muted: !prev[stem].muted },
+      [stem]: { ...prev[stem], pan },
     }));
+    audioGraphRef.current?.setStemPan(stem, pan);
   };
 
-  const toggleSolo = (stem: StemType) => {
-    setStems((prev) => ({
-      ...prev,
-      [stem]: { ...prev[stem], solo: !prev[stem].solo },
-    }));
+  const handleStemMuteToggle = (stem: StemType) => {
+    setStems((prev) => {
+      const nextMuted = !prev[stem].muted;
+      audioGraphRef.current?.setStemMute(stem, nextMuted);
+      return {
+        ...prev,
+        [stem]: { ...prev[stem], muted: nextMuted },
+      };
+    });
+  };
+
+  const handleStemSoloToggle = (stem: StemType) => {
+    setStems((prev) => {
+      const nextSolo = !prev[stem].solo;
+      audioGraphRef.current?.setStemSolo(stem, nextSolo);
+      return {
+        ...prev,
+        [stem]: { ...prev[stem], solo: nextSolo },
+      };
+    });
+  };
+
+  const handleMasterVolumeChange = (vol: number) => {
+    setMasterVolume(vol);
+    audioGraphRef.current?.setMasterVolume(vol);
+  };
+
+  const handleDjFilterChange = (cutoff: number, type: 'lowpass' | 'highpass', q: number = djFilterQ) => {
+    setDjFilterCutoff(cutoff);
+    setDjFilterType(type);
+    setDjFilterQ(q);
+    audioGraphRef.current?.setDjFilter(cutoff, type, q);
   };
 
   return (
     <div className="min-h-screen bg-deck-dark text-slate-100 flex flex-col font-sans selection:bg-neon-cyan/30">
       {/* Top Navigation Bar */}
-      <header className="h-16 border-b border-deck-border bg-deck-card/80 backdrop-blur-md px-6 flex items-center justify-between sticky top-0 z-50">
+      <header className="h-16 border-b border-deck-border bg-deck-card/85 backdrop-blur-md px-6 flex items-center justify-between sticky top-0 z-50">
         <div className="flex items-center space-x-3">
-          <div className="w-9 h-9 rounded-lg bg-gradient-to-tr from-neon-cyan to-neon-magenta flex items-center justify-center shadow-neon-cyan/40 shadow-lg">
-            <Radio className="w-5 h-5 text-deck-dark stroke-[2.5]" />
+          <div className="w-9 h-9 rounded-lg bg-gradient-to-tr from-neon-cyan via-slate-900 to-neon-magenta flex items-center justify-center shadow-neon-cyan/40 shadow-lg border border-neon-cyan/30">
+            <Radio className="w-5 h-5 text-neon-cyan stroke-[2.5]" />
           </div>
           <div>
             <div className="flex items-center space-x-2">
-              <span className="font-extrabold text-lg tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-neon-cyan via-slate-100 to-neon-magenta">
+              <span className="font-extrabold text-lg tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-neon-cyan via-slate-100 to-neon-magenta font-mono">
                 WALKOUTS
               </span>
               <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-neon-cyan/10 text-neon-cyan border border-neon-cyan/30">
-                v0.1.0
+                v0.1.0-STUDIO
               </span>
             </div>
             <p className="text-[11px] text-slate-400 font-mono tracking-tight">
-              Real-Time Neural Stem Controller & Gesture DJ
+              Real-Time Neural Stem Controller &amp; Gesture DJ
             </p>
           </div>
         </div>
 
-        {/* Global Transport Controls */}
-        <div className="flex items-center space-x-4 bg-deck-dark/80 px-4 py-1.5 rounded-full border border-deck-border">
-          <button 
-            onClick={() => setIsPlaying(!isPlaying)}
-            className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${
-              isPlaying 
-                ? 'bg-neon-magenta text-white shadow-neon-magenta' 
-                : 'bg-neon-cyan text-deck-dark shadow-neon-cyan hover:scale-105'
+        {/* View Layout Tabs */}
+        <div className="flex items-center space-x-1 bg-deck-dark p-1 rounded-xl border border-deck-border text-xs font-mono">
+          <button
+            onClick={() => setActiveStageTab('dual')}
+            className={`px-3 py-1.5 rounded-lg transition-all flex items-center space-x-1.5 ${
+              activeStageTab === 'dual'
+                ? 'bg-deck-card text-neon-cyan border border-neon-cyan/40 shadow-sm font-bold'
+                : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            {isPlaying ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current ml-0.5" />}
+            <Layers className="w-3.5 h-3.5" />
+            <span>Dual Stage</span>
           </button>
-          <button className="text-slate-400 hover:text-slate-200 transition-colors">
-            <RotateCcw className="w-4 h-4" />
+          <button
+            onClick={() => setActiveStageTab('visualizer')}
+            className={`px-3 py-1.5 rounded-lg transition-all flex items-center space-x-1.5 ${
+              activeStageTab === 'visualizer'
+                ? 'bg-deck-card text-neon-magenta border border-neon-magenta/40 shadow-sm font-bold'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Activity className="w-3.5 h-3.5" />
+            <span>Audio Stage</span>
           </button>
-          <div className="text-xs font-mono text-slate-300">
-            <span className="text-neon-cyan">{formatTime(currentTime)}</span>
-            <span className="text-slate-500"> / </span>
-            <span>{formatTime(duration)}</span>
-          </div>
-        </div>
-
-        {/* System Status Indicators */}
-        <div className="flex items-center space-x-3 text-xs font-mono">
-          <div className="flex items-center space-x-1.5 px-2.5 py-1 rounded bg-deck-dark border border-deck-border">
-            <Cpu className="w-3.5 h-3.5 text-neon-green" />
-            <span className="text-slate-300">Demucs HT:</span>
-            <span className="text-neon-green">CUDA</span>
-          </div>
-          <div className="flex items-center space-x-1.5 px-2.5 py-1 rounded bg-deck-dark border border-deck-border">
-            <Activity className="w-3.5 h-3.5 text-neon-cyan" />
-            <span className="text-slate-300">Vision:</span>
-            <span className="text-neon-cyan">60 FPS</span>
-          </div>
+          <button
+            onClick={() => setActiveStageTab('hud')}
+            className={`px-3 py-1.5 rounded-lg transition-all flex items-center space-x-1.5 ${
+              activeStageTab === 'hud'
+                ? 'bg-deck-card text-neon-green border border-neon-green/40 shadow-sm font-bold'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Eye className="w-3.5 h-3.5" />
+            <span>Vision HUD</span>
+          </button>
         </div>
       </header>
 
       {/* Main Studio Workspace */}
       <main className="flex-1 p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 max-w-[1920px] w-full mx-auto">
-        
-        {/* Left Column: Media Ingestion & Video/Webcam Stage */}
+        {/* Left Column: Media Ingestion & Spatial Vision / Audio Stage */}
         <div className="lg:col-span-7 flex flex-col space-y-6">
-          
-          {/* Ingestion Slot */}
-          <div className="bg-deck-card border border-deck-border rounded-xl p-4 shadow-lg">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center space-x-2 text-sm font-semibold text-slate-200">
-                <Sparkles className="w-4 h-4 text-neon-cyan" />
-                <span>Track Ingestion</span>
-              </div>
-              <span className="text-xs text-slate-400 font-mono">Demucs v4 Neural Stem Separation</span>
+          {/* Neural Ingestion Slot */}
+          <UrlUploader
+            onTrackLoaded={handleTrackLoaded}
+            onStatusChange={setProcessStatus}
+          />
+
+          {/* Dynamic Stage Views (Dual, Visualizer Only, or HUD Only) */}
+          {activeStageTab === 'dual' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1">
+              <VideoPlayer
+                audioGraph={audioGraphRef.current}
+                trackMetadata={trackMetadata}
+                currentTime={currentTime}
+                isPlaying={isPlaying}
+              />
+              <GestureHUD
+                gestureTracker={gestureTrackerRef.current}
+                gestureState={gestureState}
+                onGestureStateChange={handleGestureStateChange}
+                isEnabled={isGestureEnabled}
+                onToggleEnabled={setIsGestureEnabled}
+              />
             </div>
+          )}
 
-            <div className="flex flex-col sm:flex-row gap-3">
-              <div className="relative flex-1">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                  <Youtube className="w-4 h-4 text-red-500" />
-                </div>
-                <input 
-                  type="text" 
-                  placeholder="Paste YouTube or SoundCloud URL..." 
-                  className="w-full pl-9 pr-4 py-2 bg-deck-dark border border-deck-border rounded-lg text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-neon-cyan/60 transition-colors"
-                />
-              </div>
-              <div className="flex gap-2">
-                <button className="px-4 py-2 bg-neon-cyan text-deck-dark font-semibold text-xs rounded-lg hover:bg-cyan-300 transition-colors flex items-center space-x-1.5 shadow-neon-cyan">
-                  <span>Process Track</span>
-                </button>
-                <button className="px-3 py-2 bg-deck-dark hover:bg-deck-hover border border-deck-border text-slate-300 text-xs rounded-lg transition-colors flex items-center space-x-1.5">
-                  <Upload className="w-3.5 h-3.5" />
-                  <span>Upload File</span>
-                </button>
-              </div>
-            </div>
-          </div>
+          {activeStageTab === 'visualizer' && (
+            <VideoPlayer
+              audioGraph={audioGraphRef.current}
+              trackMetadata={trackMetadata}
+              currentTime={currentTime}
+              isPlaying={isPlaying}
+              className="flex-1"
+            />
+          )}
 
-          {/* Interactive Vision / Video Stage */}
-          <div className="flex-1 bg-deck-card border border-deck-border rounded-xl overflow-hidden shadow-lg flex flex-col min-h-[420px]">
-            <div className="px-4 py-3 border-b border-deck-border flex items-center justify-between bg-deck-dark/40">
-              <div className="flex items-center space-x-2">
-                <Video className="w-4 h-4 text-neon-magenta" />
-                <span className="text-sm font-semibold text-slate-200">Spatial Stage & Vision HUD</span>
-              </div>
-              <div className="flex space-x-1 bg-deck-dark p-0.5 rounded-lg border border-deck-border text-xs">
-                <button 
-                  onClick={() => setActiveTab('mixer')}
-                  className={`px-3 py-1 rounded-md transition-colors ${activeTab === 'mixer' ? 'bg-deck-card text-neon-cyan shadow-sm' : 'text-slate-400'}`}
-                >
-                  Dual Vision
-                </button>
-                <button 
-                  onClick={() => setActiveTab('camera')}
-                  className={`px-3 py-1 rounded-md transition-colors ${activeTab === 'camera' ? 'bg-deck-card text-neon-cyan shadow-sm' : 'text-slate-400'}`}
-                >
-                  Webcam
-                </button>
-                <button 
-                  onClick={() => setActiveTab('hud')}
-                  className={`px-3 py-1 rounded-md transition-colors ${activeTab === 'hud' ? 'bg-deck-card text-neon-cyan shadow-sm' : 'text-slate-400'}`}
-                >
-                  HUD Only
-                </button>
-              </div>
-            </div>
-
-            {/* Stage Viewport Placeholder */}
-            <div className="flex-1 relative bg-black/60 flex items-center justify-center group overflow-hidden">
-              {/* Grid Background Effect */}
-              <div className="absolute inset-0 bg-[linear-gradient(to_right,#1f293d15_1px,transparent_1px),linear-gradient(to_bottom,#1f293d15_1px,transparent_1px)] bg-[size:2rem_2rem]" />
-
-              <div className="text-center z-10 p-6">
-                <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-deck-card/90 border border-neon-cyan/40 flex items-center justify-center shadow-neon-cyan/30 shadow-lg">
-                  <Hand className="w-8 h-8 text-neon-cyan animate-pulse" />
-                </div>
-                <h3 className="text-lg font-bold text-slate-100">MediaPipe Vision Pipeline Ready</h3>
-                <p className="text-xs text-slate-400 max-w-sm mt-1 mx-auto">
-                  Position your hands within the camera frame to control vocal height, drum pitch, and DJ filter cutoff in real time.
-                </p>
-              </div>
-
-              {/* Hand Detection Overlay Badges */}
-              <div className="absolute top-4 left-4 bg-deck-dark/80 backdrop-blur-md border border-deck-border rounded-lg p-3 text-xs font-mono space-y-1">
-                <div className="flex items-center space-x-2">
-                  <span className="w-2 h-2 rounded-full bg-neon-cyan animate-ping" />
-                  <span className="text-neon-cyan font-bold">LEFT HAND:</span>
-                  <span className="text-slate-300">Height {(gestureState.leftHand.height * 100).toFixed(0)}%</span>
-                </div>
-                <div className="text-[11px] text-slate-400">Target: Vocals Level</div>
-              </div>
-
-              <div className="absolute top-4 right-4 bg-deck-dark/80 backdrop-blur-md border border-deck-border rounded-lg p-3 text-xs font-mono space-y-1">
-                <div className="flex items-center space-x-2">
-                  <span className="w-2 h-2 rounded-full bg-neon-magenta animate-ping" />
-                  <span className="text-neon-magenta font-bold">RIGHT HAND:</span>
-                  <span className="text-slate-300">Height {(gestureState.rightHand.height * 100).toFixed(0)}%</span>
-                </div>
-                <div className="text-[11px] text-slate-400">Target: Drums Filter (Pinch Active)</div>
-              </div>
-            </div>
-          </div>
+          {activeStageTab === 'hud' && (
+            <GestureHUD
+              gestureTracker={gestureTrackerRef.current}
+              gestureState={gestureState}
+              onGestureStateChange={handleGestureStateChange}
+              isEnabled={isGestureEnabled}
+              onToggleEnabled={setIsGestureEnabled}
+              className="flex-1"
+            />
+          )}
         </div>
 
         {/* Right Column: 4-Stem Cyberpunk Mixer Deck */}
         <div className="lg:col-span-5 flex flex-col">
-          <div className="bg-deck-card border border-deck-border rounded-xl p-5 shadow-lg flex-1 flex flex-col">
-            <div className="flex items-center justify-between pb-4 border-b border-deck-border mb-4">
-              <div className="flex items-center space-x-2">
-                <Sliders className="w-5 h-5 text-neon-cyan" />
-                <span className="text-base font-bold text-slate-100">4-Stem Neural Deck</span>
-              </div>
-              <div className="flex items-center space-x-2 text-xs font-mono text-slate-400">
-                <Layers className="w-4 h-4 text-neon-purple" />
-                <span>Web Audio API Graph</span>
-              </div>
-            </div>
-
-            {/* 4 Stem Channels Grid */}
-            <div className="grid grid-cols-4 gap-3 flex-1">
-              {STEM_TYPES.map((stem) => {
-                const color = STEM_COLORS[stem];
-                const state = stems[stem];
-
-                return (
-                  <div 
-                    key={stem} 
-                    className={`bg-deck-dark/80 rounded-xl p-3 border ${color.border} flex flex-col items-center justify-between transition-all duration-200 hover:border-opacity-100`}
-                  >
-                    {/* Header Label */}
-                    <div className="text-center w-full">
-                      <span className={`text-xs font-extrabold uppercase tracking-wider ${color.text} block`}>
-                        {stem}
-                      </span>
-                      <span className="text-[10px] text-slate-500 font-mono">
-                        {(state.volume * 100).toFixed(0)}%
-                      </span>
-                    </div>
-
-                    {/* Vertical Volume Slider / Meter */}
-                    <div className="my-3 flex-1 flex items-center justify-center w-full relative">
-                      <div className="h-48 w-6 bg-slate-900 rounded-lg p-1 flex flex-col justify-end border border-deck-border relative overflow-hidden">
-                        {/* Fill level */}
-                        <div 
-                          className={`w-full rounded-sm transition-all duration-75 ${
-                            state.muted ? 'bg-slate-700' : color.bg
-                          }`}
-                          style={{ 
-                            height: `${state.muted ? 0 : state.volume * 100}%`,
-                            backgroundColor: state.muted ? '#334155' : color.accent 
-                          }}
-                        />
-                        {/* Thumb indicator */}
-                        <input
-                          type="range"
-                          min="0"
-                          max="1"
-                          step="0.01"
-                          value={state.muted ? 0 : state.volume}
-                          onChange={(e) => handleVolumeChange(stem, parseFloat(e.target.value))}
-                          className="absolute inset-0 opacity-0 cursor-pointer h-full w-full"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Channel Controls (Mute / Solo) */}
-                    <div className="flex flex-col gap-1.5 w-full">
-                      <button
-                        onClick={() => toggleMute(stem)}
-                        className={`w-full py-1 text-[11px] font-mono font-bold rounded transition-colors ${
-                          state.muted 
-                            ? 'bg-red-500/20 text-red-400 border border-red-500/50' 
-                            : 'bg-deck-card text-slate-400 hover:text-slate-200 border border-deck-border'
-                        }`}
-                      >
-                        MUTE
-                      </button>
-                      <button
-                        onClick={() => toggleSolo(stem)}
-                        className={`w-full py-1 text-[11px] font-mono font-bold rounded transition-colors ${
-                          state.solo 
-                            ? 'bg-neon-yellow/20 text-neon-yellow border border-neon-yellow/50' 
-                            : 'bg-deck-card text-slate-400 hover:text-slate-200 border border-deck-border'
-                        }`}
-                      >
-                        SOLO
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* DJ Filter & Master Strip */}
-            <div className="mt-4 pt-4 border-t border-deck-border bg-deck-dark/40 rounded-lg p-3">
-              <div className="flex items-center justify-between text-xs font-mono">
-                <div className="flex items-center space-x-2">
-                  <Volume2 className="w-4 h-4 text-neon-cyan" />
-                  <span className="text-slate-300">Dual-Fist DJ Filter:</span>
-                </div>
-                <span className="text-neon-cyan font-bold">
-                  {gestureState.djFilterCutoff} Hz ({gestureState.djFilterType.toUpperCase()})
-                </span>
-              </div>
-              <div className="w-full bg-slate-900 h-2 rounded-full mt-2 overflow-hidden border border-deck-border">
-                <div 
-                  className="h-full bg-gradient-to-r from-neon-cyan via-neon-magenta to-neon-yellow"
-                  style={{ width: `${(gestureState.djFilterCutoff / 20000) * 100}%` }}
-                />
-              </div>
-            </div>
-          </div>
+          <MixerDeck
+            audioGraph={audioGraphRef.current}
+            stemStates={stems}
+            masterVolume={masterVolume}
+            djFilterCutoff={djFilterCutoff}
+            djFilterType={djFilterType}
+            djFilterQ={djFilterQ}
+            onStemVolumeChange={handleStemVolumeChange}
+            onStemMuteToggle={handleStemMuteToggle}
+            onStemSoloToggle={handleStemSoloToggle}
+            onStemPanChange={handleStemPanChange}
+            onMasterVolumeChange={handleMasterVolumeChange}
+            onDjFilterChange={handleDjFilterChange}
+            className="flex-1"
+          />
         </div>
-
       </main>
 
-      {/* Global Status Bar */}
-      <footer className="h-9 border-t border-deck-border bg-deck-card/90 px-6 flex items-center justify-between text-[11px] font-mono text-slate-400">
+      {/* Fixed Bottom Master Transport & Telemetry Bar */}
+      <div className="p-6 pt-0 max-w-[1920px] w-full mx-auto">
+        <MasterControls
+          isPlaying={isPlaying}
+          currentTime={currentTime}
+          duration={duration}
+          isLooping={isLooping}
+          isReady={true}
+          onPlayToggle={handlePlayToggle}
+          onSeek={handleSeek}
+          onReset={handleReset}
+          onLoopToggle={handleLoopToggle}
+        />
+      </div>
+
+      {/* Global Status Footer */}
+      <footer className="h-8 border-t border-deck-border bg-deck-card/90 px-6 flex items-center justify-between text-[11px] font-mono text-slate-400">
         <div className="flex items-center space-x-4">
           <div className="flex items-center space-x-1.5">
-            <span className="w-2 h-2 rounded-full bg-neon-green inline-block" />
-            <span className="text-slate-300">Status: {processStatus.message}</span>
+            <span
+              className={`w-2 h-2 rounded-full inline-block ${
+                processStatus.stage === 'error' ? 'bg-red-500' : 'bg-neon-green'
+              }`}
+            />
+            <span className="text-slate-300">Demucs Engine: {processStatus.message}</span>
           </div>
           <span className="text-deck-border">|</span>
-          <span>Audio Latency: 12ms</span>
+          <span>Web Audio Graph: 4-Channel Active</span>
         </div>
         <div className="flex items-center space-x-4">
-          <span>Dual Fist Quick-Drop: READY</span>
+          <span>Dual Fist Kill Switch: {gestureState.isDualFist ? 'ACTIVE' : 'READY'}</span>
           <span className="text-deck-border">|</span>
-          <span className="text-neon-cyan">WalkOuts Studio Engine</span>
+          <span className="text-neon-cyan">WalkOuts Studio Deck</span>
         </div>
       </footer>
     </div>
