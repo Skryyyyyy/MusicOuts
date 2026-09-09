@@ -1,12 +1,13 @@
 import React from "react";
 import { Cpu, Download, Music, Disc, Radio, Mic, FileAudio, Save, Zap } from "lucide-react";
 import { UrlUploader } from "../UrlUploader";
-import { ProcessStatus, TrackMetadata, StemType, STEM_TYPES, HardwareInfo } from "../../types";
+import { ProcessStatus, TrackMetadata, StemType, STEM_TYPES, HardwareInfo, SongItem } from "../../types";
 
 export interface DemixLabViewProps {
   trackMetadata: TrackMetadata | null;
   processStatus: ProcessStatus;
   hardwareInfo?: HardwareInfo | null;
+  songs?: SongItem[];
   onTrackLoaded: (track: TrackMetadata) => void;
   onStatusChange?: (status: ProcessStatus) => void;
   className?: string;
@@ -23,6 +24,7 @@ export const DemixLabView: React.FC<DemixLabViewProps> = ({
   trackMetadata,
   processStatus,
   hardwareInfo,
+  songs = [],
   onTrackLoaded,
   onStatusChange,
   className = "",
@@ -38,6 +40,7 @@ export const DemixLabView: React.FC<DemixLabViewProps> = ({
       key: "A Minor",
       timeSignature: "4/4",
       stems: trackMetadata.stems,
+      songs: songs,
       created: new Date().toISOString(),
     };
     const blob = new Blob([JSON.stringify(projectData, null, 2)], { type: "application/json" });
@@ -178,6 +181,38 @@ export const DemixLabView: React.FC<DemixLabViewProps> = ({
               </div>
             )}
           </div>
+
+          {/* Project Song Pool (Multi-Song Ingestion) */}
+          {songs.length > 0 && (
+            <div className="bg-[#15161b] border border-[#262830] rounded-lg p-3 shadow-lg flex flex-col gap-2 select-none text-[10px] font-mono text-zinc-400">
+              <div className="flex items-center justify-between border-b border-[#252730] pb-2 text-zinc-200 font-bold">
+                <div className="flex items-center space-x-1.5">
+                  <Music className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>Project Song Pool ({songs.length})</span>
+                </div>
+                <span className="text-[9px] text-zinc-500 font-normal">Remix Available</span>
+              </div>
+              <div className="flex flex-col gap-1.5 max-h-[140px] overflow-y-auto pr-1">
+                {songs.map((song) => (
+                  <div
+                    key={song.id}
+                    className="p-1.5 rounded bg-[#101114] border border-[#22242b] flex items-center justify-between"
+                  >
+                    <div className="flex items-center space-x-2 truncate">
+                      <span
+                        className="w-2 h-2 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: song.color || "#00bcd4" }}
+                      />
+                      <span className="truncate text-zinc-200 font-semibold">{song.title}</span>
+                    </div>
+                    <span className="text-zinc-500 flex-shrink-0 ml-1">
+                      {Math.floor(song.duration / 60)}:{(Math.floor(song.duration % 60)).toString().padStart(2, '0')}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Real System Hardware Details */}
           <div className="bg-[#15161b] border border-[#262830] rounded-lg p-3 shadow-lg flex flex-col gap-2 select-none text-[10px] font-mono text-zinc-400">

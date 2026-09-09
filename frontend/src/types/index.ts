@@ -239,6 +239,32 @@ export interface PerformanceSession {
   projectSnapshot: MusicOutsProject;
 }
 
+// ---------------- MULTI-SONG & AUDIO CLIP TYPES ----------------
+
+export interface AudioClip {
+  id: string;
+  songId: string;
+  songTitle: string;
+  stem: StemType;
+  startTime: number; // timeline start position in seconds
+  sourceOffset: number; // offset into source AudioBuffer in seconds
+  duration: number; // length of this slice in seconds
+  gain: number; // 0.0 to 2.0 (volume multiplier)
+  muted: boolean;
+  name: string;
+  color?: string;
+}
+
+export interface SongItem {
+  id: string;
+  title: string;
+  duration: number;
+  stems: Record<StemType, string>;
+  color: string;
+  bpm?: number;
+  key?: string;
+}
+
 // ---------------- FULL PROJECT FILE FORMAT ----------------
 
 export interface MusicOutsProject {
@@ -258,6 +284,8 @@ export interface MusicOutsProject {
   isDucking: boolean;
   markers: TimelineMarker[];
   automation: AutomationPoint[];
+  songs?: SongItem[];
+  clips?: AudioClip[];
   scenes?: Array<{
     id: string;
     name: string;

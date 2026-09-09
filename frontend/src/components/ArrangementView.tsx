@@ -6,8 +6,21 @@ import {
   Radio,
   Sliders,
   Activity,
+  Scissors,
+  Plus,
+  Trash2,
+  Copy,
 } from 'lucide-react';
-import { StemType, STEM_TYPES, StemState, TrackMetadata, GestureState, AutomationPoint } from '../types';
+import {
+  StemType,
+  STEM_TYPES,
+  StemState,
+  TrackMetadata,
+  GestureState,
+  AutomationPoint,
+  AudioClip,
+  SongItem,
+} from '../types';
 import { AudioGraphEngine } from '../engine/audioGraph';
 
 export interface ArrangementViewProps {
@@ -21,12 +34,20 @@ export interface ArrangementViewProps {
   gestureState?: GestureState;
   automationPoints?: AutomationPoint[];
   showAutomation?: boolean;
+  clips?: AudioClip[];
+  songs?: SongItem[];
   onToggleAutomation?: () => void;
   onSeek: (seconds: number) => void;
   onStemVolumeChange: (stem: StemType, val: number) => void;
   onStemMuteToggle: (stem: StemType) => void;
   onStemSoloToggle: (stem: StemType) => void;
   onStemPanChange: (stem: StemType, pan: number) => void;
+  onSliceClip?: (clipId: string, time: number) => void;
+  onTrimClip?: (clipId: string, newStartOffset: number, newDuration: number) => void;
+  onMoveClip?: (clipId: string, newStartTime: number) => void;
+  onDuplicateClip?: (clipId: string) => void;
+  onDeleteClip?: (clipId: string) => void;
+  onAddClip?: (songId: string, stem: StemType) => void;
   className?: string;
 }
 
@@ -95,12 +116,18 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
   gestureState,
   automationPoints = [],
   showAutomation = true,
+  clips = [],
+  songs = [],
   onToggleAutomation,
   onSeek,
   onStemVolumeChange,
   onStemMuteToggle,
   onStemSoloToggle,
   onStemPanChange,
+  onSliceClip,
+  onDuplicateClip,
+  onDeleteClip,
+  onAddClip,
   className = '',
 }) => {
   const timelineContainerRef = useRef<HTMLDivElement | null>(null);
@@ -112,6 +139,8 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
   });
 
   const [isScrubbing, setIsScrubbing] = useState<boolean>(false);
+  const [selectedClipId, setSelectedClipId] = useState<string | null>(null);
+  const [showMediaPool, setShowMediaPool] = useState<boolean>(false);
   const [vuLevels, setVuLevels] = useState<Record<StemType, number>>({
     vocals: 0,
     drums: 0,
@@ -119,37 +148,48 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
     other: 0,
   });
 
-  // Calculate seek percentage from mouse clientX on timeline
-  const handleTimelineInteraction = (clientX: number) => {
-    const container = timelineContainerRef.current;
-    if (!container || duration <= 0) return;
-    const rect = container.getBoundingClientRect();
-    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-    onSeek(ratio * duration);
+  const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
+
+  // Real-time timeline scrubbing
+  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!timelineContainerRef.current) return;
+    setIsScrubbing(true);
+    updateSeekFromEvent(e);
   };
 
-  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (duration <= 0) return;
-    setIsScrubbing(true);
-    handleTimelineInteraction(e.clientX);
+  const updateSeekFromEvent = (e: MouseEvent | React.MouseEvent) => {
+    if (!timelineContainerRef.current) return;
+    const rect = timelineContainerRef.current.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const ratio = Math.max(0, Math.min(1, clickX / rect.width));
+    onSeek(ratio * (duration || 180));
+  };
 
-    const handleMouseMove = (moveEvent: MouseEvent) => {
-      handleTimelineInteraction(moveEvent.clientX);
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (isScrubbing) {
+        updateSeekFromEvent(e);
+      }
     };
 
     const handleMouseUp = () => {
-      setIsScrubbing(false);
+      if (isScrubbing) {
+        setIsScrubbing(false);
+      }
+    };
+
+    if (isScrubbing) {
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+    }
+
+    return () => {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
+  }, [isScrubbing, duration]);
 
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
-  };
-
-  const progressPercent = duration > 0 ? Math.min(100, (currentTime / duration) * 100) : 0;
-
-  // Real-time Peak LED VU Meters
+  // Real-time LED VU levels
   useEffect(() => {
     let animId: number;
 
@@ -229,12 +269,10 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
         const y = (height - barHeight) / 2;
 
         if (i <= progressIndex) {
-          // Played region: crisp high-contrast stem color
           ctx.fillStyle = waveColor;
           ctx.shadowColor = waveColor;
           ctx.shadowBlur = 3;
         } else {
-          // Unplayed region: semi-transparent stem color
           ctx.fillStyle = 'rgba(161, 161, 170, 0.25)';
           ctx.shadowColor = 'transparent';
           ctx.shadowBlur = 0;
@@ -266,7 +304,6 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
           }
           ctx.stroke();
 
-          // Draw node points
           for (const pt of stemAutoPoints) {
             const autoX = (pt.time / (duration || 180)) * width;
             const autoY = height - (Math.min(1.5, Math.max(0, pt.value)) / 1.5) * (height * 0.85) - height * 0.08;
@@ -283,7 +320,6 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
     }
   }, [audioGraph, progressPercent, duration, showAutomation, automationPoints]);
 
-  // Format ruler seconds to standard DAW time mark (e.g. 0:00, 0:30, 1:00)
   const formatRulerTime = (secs: number): string => {
     const m = Math.floor(secs / 60);
     const s = Math.floor(secs % 60);
@@ -292,105 +328,186 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
 
   const rulerTicks = [0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0];
 
+  const sectionMarkers = [
+    { name: 'INTRO', ratio: 0.05, color: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50 hover:bg-cyan-500/30' },
+    { name: 'VERSE', ratio: 0.25, color: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50 hover:bg-emerald-500/30' },
+    { name: 'CHORUS', ratio: 0.50, color: 'bg-amber-500/20 text-amber-300 border-amber-500/50 hover:bg-amber-500/30' },
+    { name: 'DROP', ratio: 0.70, color: 'bg-purple-500/20 text-purple-300 border-purple-500/50 hover:bg-purple-500/30' },
+    { name: 'OUTRO', ratio: 0.90, color: 'bg-zinc-800 text-zinc-300 border-zinc-600 hover:bg-zinc-700' },
+  ];
+
+  // Slice clip at playhead handler
+  const handleSliceCurrentClip = () => {
+    if (!selectedClipId || !onSliceClip) return;
+    onSliceClip(selectedClipId, currentTime);
+  };
+
   return (
-    <div
-      className={`bg-[#141518] border border-[#262830] rounded-lg flex flex-col overflow-hidden shadow-2xl ${className}`}
-    >
-      {/* 1. Cubase Project Window Toolbar & Timeline Ruler */}
-      <div className="flex border-b border-[#262830] bg-[#1a1b20] z-20">
-        {/* Left Track Header Column Title */}
-        <div className="w-72 sm:w-80 px-3 py-2 border-r border-[#262830] flex items-center justify-between text-[11px] font-mono font-bold text-zinc-300 uppercase tracking-wider">
-          <div className="flex items-center space-x-2">
-            <Sliders className="w-3.5 h-3.5 text-zinc-400" />
-            <span>Stem Tracks (4-Ch)</span>
-          </div>
-          <div className="flex items-center space-x-1.5">
-            {onToggleAutomation && (
-              <button
-                onClick={onToggleAutomation}
-                className={`flex items-center space-x-1 px-1.5 py-0.5 rounded text-[9px] border font-bold transition-all ${
-                  showAutomation
-                    ? 'bg-pink-500/20 text-pink-300 border-pink-500/50 shadow-sm'
-                    : 'bg-[#121316] text-zinc-500 border-zinc-700 hover:text-zinc-300'
-                }`}
-                title="Toggle Automation Curves Overlay"
-              >
-                <Activity className="w-2.5 h-2.5" />
-                <span>AUTO</span>
-              </button>
-            )}
-            <span className="text-[9px] px-1.5 py-0.2 rounded bg-white/5 text-zinc-400 border border-zinc-700">
-              AUDIO
-            </span>
-          </div>
-        </div>
-
-        {/* Timeline Ruler Area (Bars / Timecode Ticks + Section Markers) */}
-        <div
-          ref={timelineContainerRef}
-          onMouseDown={handleMouseDown}
-          className={`relative flex-1 h-9 bg-[#0e0f12] overflow-hidden border-b border-[#262830] group ${
-            isScrubbing ? 'cursor-grabbing' : 'cursor-pointer'
-          }`}
-          title="Timeline Ruler - Click or drag to seek"
-        >
-          {/* Sub-beat Ruler Grid Marks */}
-          <div className="absolute inset-0 flex justify-between px-2 pointer-events-none">
-            {rulerTicks.map((ratio, idx) => {
-              const tickSecs = ratio * (duration || 180);
-              const barNum = Math.floor((tickSecs / 60) * 30) + 1;
-              return (
-                <div key={idx} className="flex flex-col justify-between h-full py-1">
-                  <span className="text-[9px] font-mono text-zinc-500 font-bold">
-                    {`B${barNum.toString().padStart(2, '0')}`}
-                    <span className="text-[8px] text-zinc-600 ml-1">
-                      {formatRulerTime(tickSecs)}
-                    </span>
-                  </span>
-                  <div className="w-px h-1.5 bg-zinc-700 self-start" />
-                </div>
-              );
-            })}
+    <div className={`bg-[#141518] border border-[#262830] rounded-lg flex flex-col overflow-hidden shadow-2xl select-none ${className}`}>
+      {/* 1. Cubase Toolbar & Separated 2-Row Timeline Header */}
+      <div className="flex flex-col border-b border-[#262830] bg-[#1a1b20] z-20">
+        {/* ROW 1: Marker Track / Arranger Section Lane (No overlap with beat ruler!) */}
+        <div className="flex border-b border-[#242630] bg-[#16171d] h-7">
+          {/* Left Label */}
+          <div className="w-72 sm:w-80 px-3 py-1 border-r border-[#242630] flex items-center justify-between text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-wider shrink-0">
+            <div className="flex items-center space-x-1.5">
+              <span className="w-2 h-2 rounded-full bg-cyan-400" />
+              <span>Section Markers</span>
+            </div>
+            <span className="text-[9px] text-zinc-500 font-mono">SECTIONS</span>
           </div>
 
-          {/* Section Markers */}
-          <div className="absolute inset-0 flex items-center px-4 pointer-events-auto z-20 space-x-6">
-            {[
-              { name: 'INTRO', ratio: 0.05, color: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40' },
-              { name: 'VERSE', ratio: 0.25, color: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' },
-              { name: 'CHORUS', ratio: 0.50, color: 'bg-amber-500/20 text-amber-300 border-amber-500/40' },
-              { name: 'DROP', ratio: 0.70, color: 'bg-purple-500/20 text-purple-300 border-purple-500/40' },
-              { name: 'OUTRO', ratio: 0.90, color: 'bg-zinc-800 text-zinc-300 border-zinc-600' },
-            ].map((m) => (
+          {/* Marker Lane Chips (Separated Row) */}
+          <div className="relative flex-1 h-full overflow-hidden flex items-center px-2">
+            {sectionMarkers.map((m) => (
               <button
                 key={m.name}
                 onClick={(e) => {
                   e.stopPropagation();
                   onSeek(m.ratio * (duration || 180));
                 }}
-                className={`px-1.5 py-0.2 rounded text-[8px] font-mono font-bold border transition-transform hover:scale-110 shadow-sm ${m.color}`}
-                title={`Jump to ${m.name}`}
+                style={{ left: `calc(${m.ratio * 100}% - 24px)` }}
+                className={`absolute px-2 py-0.5 rounded text-[8px] font-mono font-bold border transition-all shadow-sm ${m.color}`}
+                title={`Jump to ${m.name} (${formatRulerTime(m.ratio * (duration || 180))})`}
               >
                 {m.name}
               </button>
             ))}
           </div>
+        </div>
 
-          {/* Loop Region Bracket Indicator */}
-          {isLooping && (
-            <div className="absolute top-0 bottom-0 left-0 right-0 bg-cyan-500/10 border-b-2 border-cyan-400 pointer-events-none" />
-          )}
+        {/* ROW 2: Measure & Timecode Ruler Grid */}
+        <div className="flex h-8 bg-[#0c0d10]">
+          {/* Left Track Header Title & Tools */}
+          <div className="w-72 sm:w-80 px-3 py-1 border-r border-[#262830] flex items-center justify-between text-[11px] font-mono font-bold text-zinc-300 uppercase tracking-wider shrink-0">
+            <div className="flex items-center space-x-2">
+              <Sliders className="w-3.5 h-3.5 text-zinc-400" />
+              <span>Stem Tracks</span>
+            </div>
 
-          {/* Timeline Playhead Laser Line (Ruler Section) */}
+            <div className="flex items-center space-x-1">
+              {/* Slice Clip Tool Button */}
+              {onSliceClip && (
+                <button
+                  onClick={handleSliceCurrentClip}
+                  className="flex items-center space-x-1 px-1.5 py-0.5 rounded text-[9px] bg-[#171820] hover:bg-[#252834] text-amber-400 border border-amber-500/30 font-bold transition-all"
+                  title="Slice / Split Active Clip at Playhead (S)"
+                >
+                  <Scissors className="w-2.5 h-2.5" />
+                  <span>SPLIT</span>
+                </button>
+              )}
+
+              {/* Media Pool Drawer Toggle */}
+              {songs.length > 1 && (
+                <button
+                  onClick={() => setShowMediaPool(!showMediaPool)}
+                  className={`flex items-center space-x-1 px-1.5 py-0.5 rounded text-[9px] border font-bold transition-all ${
+                    showMediaPool
+                      ? 'bg-cyan-600 text-white border-cyan-400 shadow-sm'
+                      : 'bg-[#121316] text-zinc-400 border-zinc-700 hover:text-white'
+                  }`}
+                  title="Open Multi-Song Media Pool"
+                >
+                  <Plus className="w-2.5 h-2.5" />
+                  <span>POOL</span>
+                </button>
+              )}
+
+              {/* Automation Toggle Button */}
+              {onToggleAutomation && (
+                <button
+                  onClick={onToggleAutomation}
+                  className={`flex items-center space-x-1 px-1.5 py-0.5 rounded text-[9px] border font-bold transition-all ${
+                    showAutomation
+                      ? 'bg-pink-500/20 text-pink-300 border-pink-500/50 shadow-sm'
+                      : 'bg-[#121316] text-zinc-500 border-zinc-700 hover:text-zinc-300'
+                  }`}
+                  title="Toggle Automation Curves Overlay"
+                >
+                  <Activity className="w-2.5 h-2.5" />
+                  <span>AUTO</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Timeline Ruler Grid */}
           <div
-            className="absolute top-0 bottom-0 w-1 bg-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.8)] pointer-events-none z-30"
-            style={{ left: `calc(${progressPercent}% - 1px)` }}
+            ref={timelineContainerRef}
+            onMouseDown={handleMouseDown}
+            className={`relative flex-1 h-full bg-[#0a0b0e] overflow-hidden border-b border-[#262830] group ${
+              isScrubbing ? 'cursor-grabbing' : 'cursor-pointer'
+            }`}
+            title="Timeline Ruler - Click or drag to seek"
           >
-            {/* Playhead Flag Locator Thumb */}
-            <div className="w-2.5 h-2.5 bg-cyan-400 rotate-45 -translate-x-[3px] -translate-y-1 shadow-md" />
+            {/* Sub-beat Ruler Grid Marks (Clean spacing, no collision) */}
+            <div className="absolute inset-0 flex justify-between px-2 pointer-events-none">
+              {rulerTicks.map((ratio, idx) => {
+                const tickSecs = ratio * (duration || 180);
+                const barNum = Math.floor((tickSecs / 60) * 30) + 1;
+                return (
+                  <div key={idx} className="flex flex-col justify-between h-full py-0.5">
+                    <span className="text-[9px] font-mono text-zinc-400 font-bold">
+                      {`Bar ${barNum.toString().padStart(2, '0')}`}
+                      <span className="text-[8px] text-zinc-500 ml-1 font-normal">
+                        {formatRulerTime(tickSecs)}
+                      </span>
+                    </span>
+                    <div className="w-px h-1.5 bg-zinc-700 self-start" />
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Loop Bracket Indicator */}
+            {isLooping && (
+              <div className="absolute top-0 bottom-0 left-0 right-0 bg-cyan-500/10 border-b-2 border-cyan-400 pointer-events-none" />
+            )}
+
+            {/* Master Playhead Locator Flag */}
+            <div
+              className="absolute top-0 bottom-0 w-1 bg-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.8)] pointer-events-none z-30"
+              style={{ left: `calc(${progressPercent}% - 1px)` }}
+            >
+              <div className="w-2.5 h-2.5 bg-cyan-400 rotate-45 -translate-x-[3px] -translate-y-1 shadow-md" />
+            </div>
           </div>
         </div>
       </div>
+
+      {/* Multi-Song Media Pool Drawer */}
+      {showMediaPool && songs.length > 0 && (
+        <div className="bg-[#101115] border-b border-[#242630] p-2.5 flex items-center space-x-3 overflow-x-auto text-xs font-mono">
+          <span className="text-zinc-400 font-bold uppercase tracking-wider text-[10px] shrink-0">
+            Project Song Pool:
+          </span>
+          {songs.map((song) => (
+            <div
+              key={song.id}
+              className="flex items-center space-x-2 bg-[#171820] border border-[#2b2d38] px-2.5 py-1 rounded-lg shrink-0"
+            >
+              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: song.color }} />
+              <span className="text-zinc-200 font-bold text-[11px]">{song.title}</span>
+              <span className="text-zinc-500 text-[10px]">({formatRulerTime(song.duration)})</span>
+              {onAddClip && (
+                <div className="flex items-center space-x-1 pl-1 border-l border-zinc-700">
+                  {STEM_TYPES.map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => onAddClip(song.id, s)}
+                      className="px-1 py-0.2 bg-[#20222c] hover:bg-cyan-700 text-[9px] text-zinc-300 hover:text-white rounded uppercase"
+                      title={`Add ${s} clip to timeline`}
+                    >
+                      +{s[0]}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* 2. 4-Stem Multi-Track Arrangement Lanes */}
       <div className="flex-1 flex flex-col divide-y divide-[#22242c] bg-[#0d0e11]">
@@ -398,15 +515,16 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
           const config = STEM_CONFIGS[stem];
           const state = stemStates[stem] || { volume: 1.0, muted: false, solo: false, pan: 0 };
           const vu = vuLevels[stem] || 0;
+          const stemClips = clips.filter((c) => c.stem === stem);
 
           const isLeftHandControlled = stem === 'vocals' && gestureState?.leftHand.present;
           const isRightHandControlled = stem !== 'vocals' && gestureState?.rightHand.present;
 
           return (
-            <div key={stem} className="flex min-h-[92px] group transition-colors hover:bg-[#14151a]">
+            <div key={stem} className="flex min-h-[105px] group transition-colors hover:bg-[#14151a]">
               {/* Left Column: Track Header Strip */}
-              <div className="w-72 sm:w-80 p-3 bg-[#17181d] border-r border-[#262830] flex flex-col justify-between space-y-1.5 relative">
-                {/* Left Colored Spine Bar (Track ID) */}
+              <div className="w-72 sm:w-80 p-3 bg-[#17181d] border-r border-[#262830] flex flex-col justify-between space-y-1.5 relative shrink-0">
+                {/* Left Colored Spine Bar */}
                 <div
                   className="absolute left-0 top-0 bottom-0 w-1"
                   style={{ backgroundColor: config.color }}
@@ -428,7 +546,6 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
                     </div>
                   </div>
 
-                  {/* Gesture Active Indicator Tag */}
                   {(isLeftHandControlled || isRightHandControlled) && (
                     <span className="text-[7px] font-mono font-bold px-1 py-0.2 rounded bg-red-600 text-white animate-pulse">
                       GESTURE LINK
@@ -436,9 +553,8 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
                   )}
                 </div>
 
-                {/* Cubase Quick Track Buttons: Solo, Mute, Volume Fader, Pan Slider */}
+                {/* Quick Track Controls: Mute, Solo, Volume, Pan */}
                 <div className="flex items-center space-x-1.5 text-xs font-mono pl-1.5">
-                  {/* Mute Button [M] (Cubase Red when Active) */}
                   <button
                     onClick={() => onStemMuteToggle(stem)}
                     className={`w-6 h-6 rounded text-[10px] font-bold border transition-all flex items-center justify-center ${
@@ -451,7 +567,6 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
                     M
                   </button>
 
-                  {/* Solo Button [S] (Cubase Amber/Yellow when Active) */}
                   <button
                     onClick={() => onStemSoloToggle(stem)}
                     className={`w-6 h-6 rounded text-[10px] font-bold border transition-all flex items-center justify-center ${
@@ -464,7 +579,6 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
                     S
                   </button>
 
-                  {/* Volume Slider & numerical dB readout */}
                   <div className="flex-1 flex items-center space-x-1 bg-[#101114] px-1.5 py-1 rounded border border-[#24262e]">
                     <span className="text-[8px] text-zinc-400 font-bold">VOL</span>
                     <input
@@ -475,14 +589,12 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
                       value={state.volume}
                       onChange={(e) => onStemVolumeChange(stem, parseFloat(e.target.value))}
                       className="w-full h-1 bg-zinc-800 rounded appearance-none cursor-pointer accent-cyan-400"
-                      title={`${config.shortName} Volume: ${Math.round(state.volume * 100)}%`}
                     />
                     <span className="text-[8px] text-zinc-200 font-mono w-6 text-right">
                       {Math.round(state.volume * 100)}%
                     </span>
                   </div>
 
-                  {/* Pan Slider */}
                   <div className="flex items-center space-x-1 bg-[#101114] px-1 py-1 rounded border border-[#24262e]">
                     <span className="text-[7px] text-zinc-400 font-bold">PAN</span>
                     <input
@@ -493,7 +605,6 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
                       value={state.pan}
                       onChange={(e) => onStemPanChange(stem, parseFloat(e.target.value))}
                       className="w-8 h-1 bg-zinc-800 rounded appearance-none cursor-pointer accent-white"
-                      title={`${config.shortName} Pan: ${state.pan.toFixed(2)}`}
                     />
                   </div>
                 </div>
@@ -507,22 +618,84 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
                 </div>
               </div>
 
-              {/* Right Column: Cubase Audio Event Clip & Real-time Waveform Canvas */}
+              {/* Right Column: Audio Clips Timeline Lane & Independent Laser Playhead */}
               <div
                 onMouseDown={handleMouseDown}
                 className="relative flex-1 bg-[#0a0b0d] cursor-pointer overflow-hidden p-1.5"
                 title={`Click or drag to seek across ${config.shortName} timeline`}
               >
-                {/* Cubase Audio Event Container Box */}
                 <div
                   className="relative w-full h-full rounded border border-zinc-800/80 overflow-hidden"
                   style={{ backgroundColor: config.bgTint }}
                 >
-                  {/* Stem Waveform Canvas */}
+                  {/* Stem Background Waveform Canvas */}
                   <canvas
                     ref={(el) => (canvasRefs.current[stem] = el)}
                     className="absolute inset-0 w-full h-full pointer-events-none"
                   />
+
+                  {/* Interactive Audio Clips (if clips exist) */}
+                  {stemClips.map((clip) => {
+                    const clipStartRatio = (clip.startTime / (duration || 180)) * 100;
+                    const clipWidthRatio = (clip.duration / (duration || 180)) * 100;
+                    const isSelected = selectedClipId === clip.id;
+
+                    return (
+                      <div
+                        key={clip.id}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedClipId(clip.id);
+                        }}
+                        style={{
+                          left: `${clipStartRatio}%`,
+                          width: `${clipWidthRatio}%`,
+                        }}
+                        className={`absolute top-1 bottom-1 rounded border shadow-md flex flex-col justify-between p-1 z-10 transition-all ${
+                          isSelected
+                            ? 'border-cyan-400 bg-cyan-950/70 shadow-[0_0_12px_rgba(6,182,212,0.4)]'
+                            : 'border-zinc-700/80 bg-[#15161c]/80 hover:border-zinc-500'
+                        }`}
+                      >
+                        {/* Clip Header Bar */}
+                        <div className="flex items-center justify-between text-[8px] font-mono font-bold text-zinc-300">
+                          <span className="truncate max-w-[90px]">{clip.name || clip.songTitle}</span>
+                          <div className="flex items-center space-x-1">
+                            {onDuplicateClip && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onDuplicateClip(clip.id);
+                                }}
+                                className="p-0.5 hover:text-cyan-300"
+                                title="Duplicate Clip"
+                              >
+                                <Copy className="w-2.5 h-2.5" />
+                              </button>
+                            )}
+                            {onDeleteClip && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onDeleteClip(clip.id);
+                                }}
+                                className="p-0.5 hover:text-red-400"
+                                title="Delete Clip Slice"
+                              >
+                                <Trash2 className="w-2.5 h-2.5" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Clip Time Duration Badge */}
+                        <div className="text-[7px] text-zinc-500 font-mono flex justify-between items-center">
+                          <span>{formatRulerTime(clip.startTime)}</span>
+                          <span>{clip.duration.toFixed(1)}s</span>
+                        </div>
+                      </div>
+                    );
+                  })}
 
                   {/* Played Region Shading Overlay */}
                   <div
@@ -537,14 +710,16 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
                     ))}
                   </div>
 
-                  {/* Full-Height Synchronized Playhead Laser Line */}
+                  {/* Independent Moving Playhead Laser Bar (Separate on each stem!) */}
                   <div
-                    className="absolute top-0 bottom-0 w-1 bg-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.9)] pointer-events-none z-20"
+                    className="absolute top-0 bottom-0 w-1 bg-cyan-400 shadow-[0_0_10px_rgba(6,182,212,1)] pointer-events-none z-20 transition-all duration-75"
                     style={{ left: `calc(${progressPercent}% - 1px)` }}
-                  />
+                  >
+                    <div className="w-1.5 h-3 bg-white -translate-x-[1px] rounded-full shadow-sm" />
+                  </div>
 
-                  {/* Audio Clip Header Strip */}
-                  <div className="absolute top-1.5 left-2 pointer-events-none flex items-center space-x-1.5 text-[8px] font-mono font-bold text-zinc-400 bg-black/70 px-1.5 py-0.5 rounded border border-zinc-800">
+                  {/* Default Track Info Tag */}
+                  <div className="absolute top-1.5 left-2 pointer-events-none flex items-center space-x-1.5 text-[8px] font-mono font-bold text-zinc-400 bg-black/75 px-1.5 py-0.5 rounded border border-zinc-800 z-10">
                     <span style={{ color: config.color }}>●</span>
                     <span className="text-zinc-200">{trackMetadata?.title || 'DEMUCS_STEM'}</span>
                     <span className="text-zinc-500">[{config.shortName}.WAV]</span>

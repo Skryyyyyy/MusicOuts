@@ -10,6 +10,7 @@ import {
   StemSaturationConfig,
   DEFAULT_FX_RACK_STATE,
   FxRackState,
+  AudioClip,
 } from '../types';
 
 export const DEFAULT_RAMP_DURATION = 0.03; // 30ms click-free ramp
@@ -145,6 +146,11 @@ export class AudioGraphEngine {
   // Reusable typed array buffers for visualizers to prevent GC pressure
   private freqBuffers: WeakMap<AnalyserNode, Uint8Array> = new WeakMap();
   private waveBuffers: WeakMap<AnalyserNode, Uint8Array> = new WeakMap();
+
+  // Multi-Song Buffer Cache & Clip Arrange Timeline
+  private songBuffers: Map<string, Record<StemType, AudioBuffer>> = new Map();
+  private clips: AudioClip[] = [];
+  private clipSourceNodes: AudioBufferSourceNode[] = [];
 
   // Callbacks
   private endedCallbacks: Set<() => void> = new Set();
@@ -417,6 +423,16 @@ export class AudioGraphEngine {
 
     await Promise.all(loadPromises);
 
+    // Cache loaded song buffers
+    const songId = typeof trackIdOrStems === 'string' ? trackIdOrStems : 'default_track';
+    const trackBuffers = {} as Record<StemType, AudioBuffer>;
+    for (const stem of STEM_TYPES) {
+      if (this.channels[stem].buffer) {
+        trackBuffers[stem] = this.channels[stem].buffer!;
+      }
+    }
+    this.songBuffers.set(songId, trackBuffers);
+
     // Calculate maximum duration across loaded stems
     let maxDuration = 0;
     for (const stem of STEM_TYPES) {
@@ -428,6 +444,34 @@ export class AudioGraphEngine {
     this.duration = maxDuration;
     this.pausedOffset = 0;
     this.startOffset = 0;
+  }
+
+  /**
+   * Loads and caches stems for an individual song in the project media pool
+   */
+  public async loadSongStems(
+    songId: string,
+    urls: Record<StemType, string>
+  ): Promise<Record<StemType, AudioBuffer>> {
+    const loadedBuffers = {} as Record<StemType, AudioBuffer>;
+
+    const loadPromises = STEM_TYPES.map(async (stem) => {
+      const url = urls[stem];
+      if (!url) return;
+
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch song ${songId} stem ${stem}`);
+      }
+
+      const arrayBuffer = await response.arrayBuffer();
+      const decoded = await this.decodeAudio(arrayBuffer);
+      loadedBuffers[stem] = decoded;
+    });
+
+    await Promise.all(loadPromises);
+    this.songBuffers.set(songId, loadedBuffers);
+    return loadedBuffers;
   }
 
   /**
@@ -448,7 +492,7 @@ export class AudioGraphEngine {
   }
 
   /**
-   * Starts synchronized playback of all loaded stems.
+   * Starts synchronized playback of scheduled clips or full stems.
    */
   public async play(offsetSeconds?: number): Promise<void> {
     if (this.audioContext.state === 'suspended') {
@@ -466,31 +510,63 @@ export class AudioGraphEngine {
     this.pausedOffset = clampedOffset;
     this.isPlayingState = true;
 
-    for (const stem of STEM_TYPES) {
-      const channel = this.channels[stem];
-      if (!channel.buffer) continue;
+    if (this.clips.length > 0) {
+      // Schedule Audio Clips on Timeline
+      for (const clip of this.clips) {
+        if (clip.muted) continue;
+        const clipEnd = clip.startTime + clip.duration;
+        if (clampedOffset >= clipEnd) continue;
 
-      const source = this.audioContext.createBufferSource();
-      source.buffer = channel.buffer;
-      source.loop = this.isLooping;
-
-      // Connect source to channel FX input
-      source.connect(channel.inputNode);
-
-      source.onended = () => {
-        if (channel.sourceNode === source) {
-          channel.sourceNode = null;
-          const allStopped = STEM_TYPES.every((s) => !this.channels[s].sourceNode);
-          if (allStopped && this.isPlayingState) {
-            this.isPlayingState = false;
-            this.pausedOffset = this.isLooping ? 0 : this.duration;
-            this.emitEnded();
-          }
+        let buffer: AudioBuffer | null = null;
+        if (clip.songId && this.songBuffers.has(clip.songId)) {
+          buffer = this.songBuffers.get(clip.songId)![clip.stem] || null;
         }
-      };
+        if (!buffer) {
+          buffer = this.channels[clip.stem]?.buffer;
+        }
+        if (!buffer) continue;
 
-      source.start(now, clampedOffset);
-      channel.sourceNode = source;
+        const source = this.audioContext.createBufferSource();
+        source.buffer = buffer;
+
+        source.connect(this.channels[clip.stem].inputNode);
+
+        const startDelay = Math.max(0, clip.startTime - clampedOffset);
+        const sourceOffset = clip.sourceOffset + Math.max(0, clampedOffset - clip.startTime);
+        const playDuration = clip.duration - Math.max(0, clampedOffset - clip.startTime);
+
+        if (playDuration > 0) {
+          source.start(now + startDelay, sourceOffset, playDuration);
+          this.clipSourceNodes.push(source);
+        }
+      }
+    } else {
+      // Fallback: Full 4-stem channel playback
+      for (const stem of STEM_TYPES) {
+        const channel = this.channels[stem];
+        if (!channel.buffer) continue;
+
+        const source = this.audioContext.createBufferSource();
+        source.buffer = channel.buffer;
+        source.loop = this.isLooping;
+
+        source.connect(channel.inputNode);
+
+        source.onended = () => {
+          if (channel.sourceNode === source) {
+            channel.sourceNode = null;
+            const allStopped = STEM_TYPES.every((s) => !this.channels[s].sourceNode);
+            if (allStopped && this.isPlayingState) {
+              this.isPlayingState = false;
+              this.pausedOffset = this.isLooping ? 0 : this.duration;
+              this.emitEnded();
+            }
+          }
+        };
+
+        source.start(now, clampedOffset);
+        channel.sourceNode = source;
+      }
     }
   }
 
@@ -519,6 +595,7 @@ export class AudioGraphEngine {
   }
 
   private stopActiveSources(): void {
+    // 1. Stop channel sources
     for (const stem of STEM_TYPES) {
       const channel = this.channels[stem];
       if (channel.sourceNode) {
@@ -531,6 +608,96 @@ export class AudioGraphEngine {
         channel.sourceNode = null;
       }
     }
+
+    // 2. Stop clip sources
+    for (const source of this.clipSourceNodes) {
+      try {
+        source.stop();
+        source.disconnect();
+      } catch {
+        // Ignore
+      }
+    }
+    this.clipSourceNodes = [];
+  }
+
+  // ---------------- MULTI-CLIP ARRANGEMENT API ----------------
+
+  public setClips(clips: AudioClip[]): void {
+    this.clips = [...clips];
+    let maxClipEnd = this.duration;
+    for (const c of clips) {
+      maxClipEnd = Math.max(maxClipEnd, c.startTime + c.duration);
+    }
+    this.duration = Math.max(maxClipEnd, 1);
+  }
+
+  public getClips(): AudioClip[] {
+    return [...this.clips];
+  }
+
+  public sliceClip(clipId: string, timelineSeconds: number): AudioClip[] {
+    const idx = this.clips.findIndex((c) => c.id === clipId);
+    if (idx === -1) return this.clips;
+
+    const clip = this.clips[idx];
+    if (timelineSeconds <= clip.startTime || timelineSeconds >= clip.startTime + clip.duration) {
+      return this.clips;
+    }
+
+    const firstDuration = timelineSeconds - clip.startTime;
+    const secondDuration = clip.duration - firstDuration;
+    const secondSourceOffset = clip.sourceOffset + firstDuration;
+
+    const clip1: AudioClip = {
+      ...clip,
+      id: `clip_${Date.now()}_a`,
+      duration: firstDuration,
+      name: `${clip.name} (Pt 1)`,
+    };
+
+    const clip2: AudioClip = {
+      ...clip,
+      id: `clip_${Date.now()}_b`,
+      startTime: timelineSeconds,
+      sourceOffset: secondSourceOffset,
+      duration: secondDuration,
+      name: `${clip.name} (Pt 2)`,
+    };
+
+    this.clips.splice(idx, 1, clip1, clip2);
+    return [...this.clips];
+  }
+
+  public trimClip(clipId: string, newStartOffset: number, newDuration: number): void {
+    const clip = this.clips.find((c) => c.id === clipId);
+    if (!clip) return;
+    clip.sourceOffset = Math.max(0, newStartOffset);
+    clip.duration = Math.max(0.1, newDuration);
+  }
+
+  public moveClip(clipId: string, newStartTime: number): void {
+    const clip = this.clips.find((c) => c.id === clipId);
+    if (!clip) return;
+    clip.startTime = Math.max(0, newStartTime);
+  }
+
+  public duplicateClip(clipId: string): AudioClip | null {
+    const clip = this.clips.find((c) => c.id === clipId);
+    if (!clip) return null;
+
+    const dup: AudioClip = {
+      ...clip,
+      id: `clip_${Date.now()}_dup`,
+      startTime: clip.startTime + clip.duration,
+      name: `${clip.name} (Copy)`,
+    };
+    this.clips.push(dup);
+    return dup;
+  }
+
+  public deleteClip(clipId: string): void {
+    this.clips = this.clips.filter((c) => c.id !== clipId);
   }
 
   /**

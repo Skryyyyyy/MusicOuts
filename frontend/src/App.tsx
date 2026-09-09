@@ -73,6 +73,10 @@ export const App: React.FC = () => {
   const [stems, setStems] = useState<Record<StemType, StemState>>(INITIAL_STEM_STATES);
   const [fxRackState, setFxRackState] = useState<FxRackState>(DEFAULT_FX_RACK_STATE);
 
+  // Multi-Song Pool & DAW Audio Clips State
+  const [songs, setSongs] = useState<import("./types").SongItem[]>([]);
+  const [clips, setClips] = useState<import("./types").AudioClip[]>([]);
+
   // Automation & Performance Capture State
   const [isRecordingAutomation, setIsRecordingAutomation] = useState<boolean>(false);
   const [isCapturingPerformance, setIsCapturingPerformance] = useState<boolean>(false);
@@ -254,10 +258,51 @@ export const App: React.FC = () => {
     setDuration(loadedTrack.duration);
     setIsLoadingStems(true);
 
+    const songColors = ["#00bcd4", "#ff7043", "#ab47bc", "#4caf50", "#e91e63", "#ffeb3b"];
+    const songColor = songColors[songs.length % songColors.length];
+
+    const newSong: import("./types").SongItem = {
+      id: loadedTrack.id,
+      title: loadedTrack.title,
+      duration: loadedTrack.duration,
+      stems: loadedTrack.stems,
+      color: songColor,
+      bpm: 120,
+      key: "A minor",
+    };
+
+    setSongs((prev) => {
+      const exists = prev.some((s) => s.id === newSong.id);
+      return exists ? prev : [...prev, newSong];
+    });
+
     const audioGraph = audioGraphRef.current;
     if (audioGraph) {
       try {
+        await audioGraph.loadSongStems(loadedTrack.id, loadedTrack.stems);
         await audioGraph.loadStems(loadedTrack.id, loadedTrack.stems);
+
+        // Generate 4 initial track clips if no clips exist or append them
+        const newClips: import("./types").AudioClip[] = STEM_TYPES.map((stem) => ({
+          id: `clip_${loadedTrack.id}_${stem}_${Date.now()}_${Math.random().toString(36).substring(2, 5)}`,
+          songId: loadedTrack.id,
+          songTitle: loadedTrack.title,
+          stem,
+          startTime: 0,
+          sourceOffset: 0,
+          duration: loadedTrack.duration,
+          gain: 1.0,
+          muted: false,
+          name: `${loadedTrack.title.substring(0, 14)} [${stem.toUpperCase()}]`,
+          color: songColor,
+        }));
+
+        setClips((prev) => {
+          const updated = [...prev, ...newClips];
+          audioGraph.setClips(updated);
+          return updated;
+        });
+
         for (const stem of STEM_TYPES) {
           audioGraph.setStemVolume(stem, stems[stem].volume, 0);
           audioGraph.setStemPan(stem, stems[stem].pan, 0);
@@ -279,6 +324,74 @@ export const App: React.FC = () => {
     } else {
       setIsLoadingStems(false);
     }
+  };
+
+  // DAW Audio Clip Manipulation Handlers
+  const handleSliceClip = (clipId: string, time: number) => {
+    const audioGraph = audioGraphRef.current;
+    if (!audioGraph) return;
+    const res = audioGraph.sliceClip(clipId, time);
+    if (res) {
+      setClips([...audioGraph.getClips()]);
+    }
+  };
+
+  const handleTrimClip = (clipId: string, newStartOffset: number, newDuration: number) => {
+    const audioGraph = audioGraphRef.current;
+    if (!audioGraph) return;
+    audioGraph.trimClip(clipId, newStartOffset, newDuration);
+    setClips([...audioGraph.getClips()]);
+  };
+
+  const handleMoveClip = (clipId: string, newStartTime: number) => {
+    const audioGraph = audioGraphRef.current;
+    if (!audioGraph) return;
+    audioGraph.moveClip(clipId, newStartTime);
+    setClips([...audioGraph.getClips()]);
+  };
+
+  const handleDuplicateClip = (clipId: string) => {
+    const audioGraph = audioGraphRef.current;
+    if (!audioGraph) return;
+    const dup = audioGraph.duplicateClip(clipId);
+    if (dup) {
+      setClips([...audioGraph.getClips()]);
+    }
+  };
+
+  const handleDeleteClip = (clipId: string) => {
+    const audioGraph = audioGraphRef.current;
+    if (!audioGraph) return;
+    audioGraph.deleteClip(clipId);
+    setClips([...audioGraph.getClips()]);
+  };
+
+  const handleAddClip = (songId: string, stem: StemType) => {
+    const targetSong = songs.find((s) => s.id === songId);
+    if (!targetSong) return;
+
+    const audioGraph = audioGraphRef.current;
+    const playheadTime = audioGraph ? audioGraph.getCurrentTime() : currentTime;
+
+    const newClip: import("./types").AudioClip = {
+      id: `clip_${songId}_${stem}_${Date.now()}_${Math.random().toString(36).substring(2, 5)}`,
+      songId: targetSong.id,
+      songTitle: targetSong.title,
+      stem,
+      startTime: playheadTime,
+      sourceOffset: 0,
+      duration: Math.min(30, targetSong.duration),
+      gain: 1.0,
+      muted: false,
+      name: `${targetSong.title.substring(0, 12)} [${stem.toUpperCase()}]`,
+      color: targetSong.color || "#00bcd4",
+    };
+
+    setClips((prev) => {
+      const updated = [...prev, newClip];
+      audioGraphRef.current?.setClips(updated);
+      return updated;
+    });
   };
 
   // Play / Pause Toggle
@@ -678,12 +791,20 @@ export const App: React.FC = () => {
             gestureState={gestureState}
             automationPoints={automationManagerRef.current.getPoints()}
             showAutomation={showAutomation}
+            clips={clips}
+            songs={songs}
             onToggleAutomation={() => setShowAutomation(!showAutomation)}
             onSeek={handleSeek}
             onStemVolumeChange={handleStemVolumeChange}
             onStemMuteToggle={handleStemMuteToggle}
             onStemSoloToggle={handleStemSoloToggle}
             onStemPanChange={handleStemPanChange}
+            onSliceClip={handleSliceClip}
+            onTrimClip={handleTrimClip}
+            onMoveClip={handleMoveClip}
+            onDuplicateClip={handleDuplicateClip}
+            onDeleteClip={handleDeleteClip}
+            onAddClip={handleAddClip}
             className="flex-1 min-h-[420px]"
           />
         </div>
@@ -749,6 +870,7 @@ export const App: React.FC = () => {
             trackMetadata={trackMetadata}
             processStatus={processStatus}
             hardwareInfo={hardwareInfo}
+            songs={songs}
             onTrackLoaded={handleTrackLoaded}
             onStatusChange={setProcessStatus}
             className="flex-1 h-full min-h-[500px]"
