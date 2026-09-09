@@ -1,14 +1,11 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { Radio, Layers, Activity, Eye } from 'lucide-react';
 import { StemType, STEM_TYPES, StemState, GestureState, ProcessStatus, TrackMetadata } from './types';
 import { AudioGraphEngine } from './engine/audioGraph';
 import { GestureTracker, DEFAULT_GESTURE_STATE } from './engine/gestureTracker';
 
-import { GestureHUD } from './components/GestureHUD';
-import { MixerDeck } from './components/MixerDeck';
-import { VideoPlayer } from './components/VideoPlayer';
-import { UrlUploader } from './components/UrlUploader';
-import { MasterControls } from './components/MasterControls';
+import { DawTransport } from './components/DawTransport';
+import { ArrangementView } from './components/ArrangementView';
+import { DawInspector } from './components/DawInspector';
 
 const INITIAL_STEM_STATES: Record<StemType, StemState> = {
   vocals: { volume: 0.85, muted: false, solo: false, pan: 0.0 },
@@ -29,6 +26,7 @@ export const App: React.FC = () => {
   const [duration, setDuration] = useState<number>(180);
   const [isLooping, setIsLooping] = useState<boolean>(false);
   const [masterVolume, setMasterVolume] = useState<number>(1.0);
+
   // Auto-Ducking State
   const [isDucking, setIsDucking] = useState<boolean>(false);
   const [duckingReduction, setDuckingReduction] = useState<number>(1.0);
@@ -44,7 +42,6 @@ export const App: React.FC = () => {
   // Vision & Gesture Telemetry State
   const [isGestureEnabled, setIsGestureEnabled] = useState<boolean>(false);
   const [gestureState, setGestureState] = useState<GestureState>(DEFAULT_GESTURE_STATE);
-  const [activeStageTab, setActiveStageTab] = useState<'dual' | 'visualizer' | 'hud'>('dual');
 
   // Processing SSE Status
   const [processStatus, setProcessStatus] = useState<ProcessStatus>({
@@ -103,51 +100,54 @@ export const App: React.FC = () => {
   }, []);
 
   // Handle gesture telemetry frame updates and apply dynamic audio modulation
-  const handleGestureStateChange = useCallback((state: GestureState) => {
-    setGestureState(state);
-    const audioGraph = audioGraphRef.current;
-    if (!audioGraph) return;
+  const handleGestureStateChange = useCallback(
+    (state: GestureState) => {
+      setGestureState(state);
+      const audioGraph = audioGraphRef.current;
+      if (!audioGraph) return;
 
-    // 1. Dual Fist Kill Switch
-    if (state.isDualFist) {
-      audioGraph.setMasterVolume(0.0, 0.02);
-      return;
-    } else {
-      audioGraph.setMasterVolume(masterVolume, 0.05);
-    }
+      // 1. Dual Fist Kill Switch
+      if (state.isDualFist) {
+        audioGraph.setMasterVolume(0.0, 0.02);
+        return;
+      } else {
+        audioGraph.setMasterVolume(masterVolume, 0.05);
+      }
 
-    // 2. Left Hand Modulation (Vocals Level & Solo/Mute)
-    if (state.leftHand.present) {
-      const vocalVol = state.leftHand.height;
-      audioGraph.setStemVolume('vocals', vocalVol, 0.04);
-      setStems((prev) => ({
-        ...prev,
-        vocals: {
-          ...prev.vocals,
-          volume: vocalVol,
-          solo: state.leftHand.isPinching,
-          muted: state.leftHand.isFist,
-        },
-      }));
-      audioGraph.setStemSolo('vocals', state.leftHand.isPinching, 0.04);
-      audioGraph.setStemMute('vocals', state.leftHand.isFist, 0.04);
-    }
+      // 2. Left Hand Modulation (Vocals Level & Solo/Mute)
+      if (state.leftHand.present) {
+        const vocalVol = state.leftHand.height;
+        audioGraph.setStemVolume('vocals', vocalVol, 0.04);
+        setStems((prev) => ({
+          ...prev,
+          vocals: {
+            ...prev.vocals,
+            volume: vocalVol,
+            solo: state.leftHand.isPinching,
+            muted: state.leftHand.isFist,
+          },
+        }));
+        audioGraph.setStemSolo('vocals', state.leftHand.isPinching, 0.04);
+        audioGraph.setStemMute('vocals', state.leftHand.isFist, 0.04);
+      }
 
-    // 3. Right Hand Modulation (Instruments Level & DJ Filter Sweep)
-    if (state.rightHand.present) {
-      const otherVol = state.rightHand.height;
-      audioGraph.setStemVolume('other', otherVol, 0.04);
-      setStems((prev) => ({
-        ...prev,
-        other: { ...prev.other, volume: otherVol },
-      }));
+      // 3. Right Hand Modulation (Instruments Level & DJ Filter Sweep)
+      if (state.rightHand.present) {
+        const otherVol = state.rightHand.height;
+        audioGraph.setStemVolume('other', otherVol, 0.04);
+        setStems((prev) => ({
+          ...prev,
+          other: { ...prev.other, volume: otherVol },
+        }));
 
-      // DJ Filter Sweep
-      setDjFilterCutoff(state.djFilterCutoff);
-      setDjFilterType(state.djFilterType);
-      audioGraph.setDjFilter(state.djFilterCutoff, state.djFilterType, djFilterQ, 0.04);
-    }
-  }, [masterVolume, djFilterQ]);
+        // DJ Filter Sweep
+        setDjFilterCutoff(state.djFilterCutoff);
+        setDjFilterType(state.djFilterType);
+        audioGraph.setDjFilter(state.djFilterCutoff, state.djFilterType, djFilterQ, 0.04);
+      }
+    },
+    [masterVolume, djFilterQ]
+  );
 
   // Track Ingestion Handler
   const handleTrackLoaded = async (loadedTrack: TrackMetadata) => {
@@ -184,6 +184,17 @@ export const App: React.FC = () => {
     } else {
       await audioGraph.play();
       setIsPlaying(true);
+    }
+  };
+
+  // Stop Playback
+  const handleStop = () => {
+    const audioGraph = audioGraphRef.current;
+    if (audioGraph) {
+      audioGraph.pause();
+      audioGraph.seek(0);
+      setIsPlaying(false);
+      setCurrentTime(0);
     }
   };
 
@@ -273,178 +284,99 @@ export const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-deck-dark text-zinc-100 flex flex-col font-sans selection:bg-white/20">
-      {/* Top Navigation Bar */}
-      <header className="h-16 border-b border-deck-border bg-deck-card/90 backdrop-blur-md px-6 flex items-center justify-between sticky top-0 z-50">
-        <div className="flex items-center space-x-3">
-          <div className="w-9 h-9 rounded-lg bg-white flex items-center justify-center shadow-mono-glow border border-white">
-            <Radio className="w-5 h-5 text-black stroke-[2.5]" />
-          </div>
-          <div>
-            <div className="flex items-center space-x-2">
-              <span className="font-extrabold text-lg tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-white via-zinc-200 to-zinc-400 font-mono">
-                MUSICOUTS
-              </span>
-              <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-white/10 text-zinc-200 border border-white/20">
-                v0.1.0-MONO
-              </span>
-            </div>
-            <p className="text-[11px] text-zinc-400 font-mono tracking-tight">
-              Real-Time Neural Stem Controller &amp; Gesture DJ
-            </p>
-          </div>
-        </div>
+    <div className="min-h-screen bg-[#0e0f12] text-zinc-100 flex flex-col font-sans selection:bg-cyan-500/20 select-none">
+      {/* 1. Top Transport Header Bar */}
+      <DawTransport
+        isPlaying={isPlaying}
+        currentTime={currentTime}
+        duration={duration}
+        isLooping={isLooping}
+        isReady={true}
+        masterVolume={masterVolume}
+        djFilterCutoff={djFilterCutoff}
+        djFilterType={djFilterType}
+        isDucking={isDucking}
+        duckingReduction={duckingReduction}
+        audioGraph={audioGraphRef.current}
+        onPlayToggle={handlePlayToggle}
+        onStop={handleStop}
+        onSeek={handleSeek}
+        onReset={handleReset}
+        onLoopToggle={handleLoopToggle}
+        onDuckingToggle={handleDuckingToggle}
+        onMasterVolumeChange={handleMasterVolumeChange}
+        onDjFilterChange={handleDjFilterChange}
+      />
 
-        {/* View Layout Tabs */}
-        <div className="flex items-center space-x-1 bg-deck-dark p-1 rounded-xl border border-deck-border text-xs font-mono">
-          <button
-            onClick={() => setActiveStageTab('dual')}
-            className={`px-3 py-1.5 rounded-lg transition-all flex items-center space-x-1.5 ${
-              activeStageTab === 'dual'
-                ? 'bg-white text-black font-bold shadow-mono-glow'
-                : 'text-zinc-400 hover:text-white'
-            }`}
-          >
-            <Layers className="w-3.5 h-3.5" />
-            <span>Dual Stage</span>
-          </button>
-          <button
-            onClick={() => setActiveStageTab('visualizer')}
-            className={`px-3 py-1.5 rounded-lg transition-all flex items-center space-x-1.5 ${
-              activeStageTab === 'visualizer'
-                ? 'bg-white text-black font-bold shadow-mono-glow'
-                : 'text-zinc-400 hover:text-white'
-            }`}
-          >
-            <Activity className="w-3.5 h-3.5" />
-            <span>Audio Stage</span>
-          </button>
-          <button
-            onClick={() => setActiveStageTab('hud')}
-            className={`px-3 py-1.5 rounded-lg transition-all flex items-center space-x-1.5 ${
-              activeStageTab === 'hud'
-                ? 'bg-white text-black font-bold shadow-mono-glow'
-                : 'text-zinc-400 hover:text-white'
-            }`}
-          >
-            <Eye className="w-3.5 h-3.5" />
-            <span>Vision HUD</span>
-          </button>
-        </div>
-      </header>
-
-      {/* Main Studio Workspace */}
-      <main className="flex-1 p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 max-w-[1920px] w-full mx-auto">
-        {/* Left Column: Media Ingestion & Spatial Vision / Audio Stage */}
-        <div className="lg:col-span-7 flex flex-col space-y-6">
-          {/* Neural Ingestion Slot */}
-          <UrlUploader
-            onTrackLoaded={handleTrackLoaded}
-            onStatusChange={setProcessStatus}
-          />
-
-          {/* Dynamic Stage Views (Dual, Visualizer Only, or HUD Only) */}
-          {activeStageTab === 'dual' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1">
-              <VideoPlayer
-                audioGraph={audioGraphRef.current}
-                trackMetadata={trackMetadata}
-                currentTime={currentTime}
-                isPlaying={isPlaying}
-              />
-              <GestureHUD
-                gestureTracker={gestureTrackerRef.current}
-                gestureState={gestureState}
-                onGestureStateChange={handleGestureStateChange}
-                isEnabled={isGestureEnabled}
-                onToggleEnabled={setIsGestureEnabled}
-              />
-            </div>
-          )}
-
-          {activeStageTab === 'visualizer' && (
-            <VideoPlayer
-              audioGraph={audioGraphRef.current}
-              trackMetadata={trackMetadata}
-              currentTime={currentTime}
-              isPlaying={isPlaying}
-              className="flex-1"
-            />
-          )}
-
-          {activeStageTab === 'hud' && (
-            <GestureHUD
-              gestureTracker={gestureTrackerRef.current}
-              gestureState={gestureState}
-              onGestureStateChange={handleGestureStateChange}
-              isEnabled={isGestureEnabled}
-              onToggleEnabled={setIsGestureEnabled}
-              className="flex-1"
-            />
-          )}
-        </div>
-
-        {/* Right Column: 4-Stem Cyberpunk Mixer Deck */}
-        <div className="lg:col-span-5 flex flex-col">
-          <MixerDeck
-            audioGraph={audioGraphRef.current}
-            stemStates={stems}
-            masterVolume={masterVolume}
-            djFilterCutoff={djFilterCutoff}
-            djFilterType={djFilterType}
-            djFilterQ={djFilterQ}
-            onStemVolumeChange={handleStemVolumeChange}
-            onStemMuteToggle={handleStemMuteToggle}
-            onStemSoloToggle={handleStemSoloToggle}
-            onStemPanChange={handleStemPanChange}
-            onMasterVolumeChange={handleMasterVolumeChange}
-            onDjFilterChange={handleDjFilterChange}
-            className="flex-1"
-          />
-        </div>
-      </main>
-
-      {/* Fixed Bottom Master Transport & Telemetry Bar */}
-      <div className="p-6 pt-0 max-w-[1920px] w-full mx-auto">
-        <MasterControls
-          isPlaying={isPlaying}
+      {/* 2. Main DAW Workspace */}
+      <main className="flex-1 p-2.5 flex flex-col gap-2.5 max-w-[1920px] w-full mx-auto overflow-hidden">
+        {/* Top Section: Multi-track Stem Arrangement Timeline */}
+        <ArrangementView
+          audioGraph={audioGraphRef.current}
+          trackMetadata={trackMetadata}
           currentTime={currentTime}
           duration={duration}
+          isPlaying={isPlaying}
           isLooping={isLooping}
-          isReady={true}
-          audioGraph={audioGraphRef.current}
-          isDucking={isDucking}
-          duckingReduction={duckingReduction}
-          onPlayToggle={handlePlayToggle}
+          stemStates={stems}
+          gestureState={gestureState}
           onSeek={handleSeek}
-          onReset={handleReset}
-          onLoopToggle={handleLoopToggle}
-          onDuckingToggle={handleDuckingToggle}
+          onStemVolumeChange={handleStemVolumeChange}
+          onStemMuteToggle={handleStemMuteToggle}
+          onStemSoloToggle={handleStemSoloToggle}
+          onStemPanChange={handleStemPanChange}
+          className="flex-1 min-h-[320px]"
         />
-      </div>
 
-      {/* Global Status Footer */}
-      <footer className="h-8 border-t border-deck-border bg-deck-card/90 px-6 flex items-center justify-between text-[11px] font-mono text-zinc-400">
-        <div className="flex items-center space-x-4">
+        {/* Bottom Section: Collapsible Studio Inspector Drawer */}
+        <DawInspector
+          audioGraph={audioGraphRef.current}
+          gestureTracker={gestureTrackerRef.current}
+          trackMetadata={trackMetadata}
+          currentTime={currentTime}
+          isPlaying={isPlaying}
+          stemStates={stems}
+          masterVolume={masterVolume}
+          djFilterCutoff={djFilterCutoff}
+          djFilterType={djFilterType}
+          djFilterQ={djFilterQ}
+          isGestureEnabled={isGestureEnabled}
+          gestureState={gestureState}
+          onTrackLoaded={handleTrackLoaded}
+          onStatusChange={setProcessStatus}
+          onStemVolumeChange={handleStemVolumeChange}
+          onStemMuteToggle={handleStemMuteToggle}
+          onStemSoloToggle={handleStemSoloToggle}
+          onStemPanChange={handleStemPanChange}
+          onMasterVolumeChange={handleMasterVolumeChange}
+          onDjFilterChange={handleDjFilterChange}
+          onGestureStateChange={handleGestureStateChange}
+          onToggleGestureEnabled={setIsGestureEnabled}
+        />
+      </main>
+
+      {/* 3. Status Bar Footer */}
+      <footer className="h-6 border-t border-[#262830] bg-[#17181d] px-3 flex items-center justify-between text-[10px] font-mono text-zinc-400 select-none">
+        <div className="flex items-center space-x-3">
           <div className="flex items-center space-x-1.5">
             <span
-              className={`w-2 h-2 rounded-full inline-block ${
-                processStatus.stage === 'error' ? 'bg-red-500' : 'bg-white shadow-[0_0_6px_rgba(255,255,255,0.8)]'
+              className={`w-1.5 h-1.5 rounded-full inline-block ${
+                processStatus.stage === 'error' ? 'bg-red-500' : 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]'
               }`}
             />
             <span className="text-zinc-300">Demucs Engine: {processStatus.message}</span>
           </div>
-          <span className="text-deck-border">|</span>
-          <span>Web Audio Graph: 4-Channel Active</span>
-          <span className="text-deck-border">|</span>
-          <span className={isDucking ? 'text-white font-semibold' : 'text-zinc-500'}>
-            Sidechain Ducking: {isDucking ? 'AUTO' : 'DISABLED'}
+          <span className="text-zinc-700">|</span>
+          <span>Web Audio DSP: 4-Track 64-bit Flow</span>
+          <span className="text-zinc-700">|</span>
+          <span className={isDucking ? 'text-purple-400 font-semibold' : 'text-zinc-500'}>
+            Sidechain Ducking: {isDucking ? 'ACTIVE' : 'OFF'}
           </span>
         </div>
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-3">
           <span>Dual Fist Kill Switch: {gestureState.isDualFist ? 'ACTIVE' : 'READY'}</span>
-          <span className="text-deck-border">|</span>
-          <span className="text-white font-medium">MusicOuts Studio Deck</span>
+          <span className="text-zinc-700">|</span>
+          <span className="text-cyan-400 font-medium">MusicOuts Pro DAW</span>
         </div>
       </footer>
     </div>

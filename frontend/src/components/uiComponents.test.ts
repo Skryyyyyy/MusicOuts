@@ -7,6 +7,9 @@ import { MixerDeck } from './MixerDeck';
 import { VideoPlayer } from './VideoPlayer';
 import { UrlUploader } from './UrlUploader';
 import { MasterControls } from './MasterControls';
+import { DawTransport } from './DawTransport';
+import { ArrangementView } from './ArrangementView';
+import { DawInspector } from './DawInspector';
 import { StemType, StemState, GestureState, TrackMetadata } from '../types';
 import { DEFAULT_GESTURE_STATE } from '../engine/gestureTracker';
 
@@ -251,6 +254,108 @@ describe('UI Studio Deck Components', () => {
       expect(html).toContain('0:00');
       expect(html).toContain('3:00');
       expect(html).toMatch(/DUCKING.*OFF/);
+    });
+  });
+
+  describe('DawTransport Component', () => {
+    it('renders master timecode LCD, tempo/sig, transport controls, and volume faders', () => {
+      const html = renderToString(
+        React.createElement(DawTransport, {
+          isPlaying: false,
+          currentTime: 65.5,
+          duration: 180,
+          isLooping: true,
+          isReady: true,
+          masterVolume: 0.85,
+          djFilterCutoff: 15000,
+          djFilterType: 'lowpass',
+          isDucking: true,
+          duckingReduction: 0.5,
+          onPlayToggle: vi.fn(),
+          onStop: vi.fn(),
+          onSeek: vi.fn(),
+          onReset: vi.fn(),
+          onLoopToggle: vi.fn(),
+          onDuckingToggle: vi.fn(),
+          onMasterVolumeChange: vi.fn(),
+          onDjFilterChange: vi.fn(),
+        })
+      );
+
+      expect(html).toContain('MUSICOUTS');
+      expect(html).toContain('01:05.50');
+      expect(html).toContain('120.00');
+      expect(html).toContain('4/4');
+      expect(html).toContain('RTX 2050');
+      expect(html).toMatch(/DUCKING.*AUTO/);
+      expect(html).toContain('MASTER OUT');
+      expect(html).toContain('DJ FILTER');
+    });
+  });
+
+  describe('ArrangementView Component', () => {
+    it('renders 4 stem track lanes with channel badges, solo/mute buttons, and waveform canvas containers', () => {
+      const html = renderToString(
+        React.createElement(ArrangementView, {
+          audioGraph: null,
+          trackMetadata: MOCK_TRACK,
+          currentTime: 45,
+          duration: 215,
+          isPlaying: true,
+          isLooping: false,
+          stemStates: MOCK_STEM_STATES,
+          onSeek: vi.fn(),
+          onStemVolumeChange: vi.fn(),
+          onStemMuteToggle: vi.fn(),
+          onStemSoloToggle: vi.fn(),
+          onStemPanChange: vi.fn(),
+        })
+      );
+
+      expect(html).toContain('Stem Tracks (4-Ch)');
+      expect(html).toContain('01 VOCALS [LEAD]');
+      expect(html).toContain('02 DRUMS [PERC]');
+      expect(html).toContain('03 BASS [LOW-END]');
+      expect(html).toContain('04 OTHER [SYNTH &amp; INST]');
+      expect(html).toContain('LEFT HAND HEIGHT &amp; PINCH');
+      expect(html).toContain('RIGHT HAND HEIGHT');
+    });
+  });
+
+  describe('DawInspector Component', () => {
+    it('renders drawer header tabs and collapsible container', () => {
+      const html = renderToString(
+        React.createElement(DawInspector, {
+          audioGraph: null,
+          gestureTracker: null,
+          trackMetadata: MOCK_TRACK,
+          currentTime: 10,
+          isPlaying: false,
+          stemStates: MOCK_STEM_STATES,
+          masterVolume: 1.0,
+          djFilterCutoff: 20000,
+          djFilterType: 'lowpass',
+          djFilterQ: 1.0,
+          isGestureEnabled: false,
+          gestureState: DEFAULT_GESTURE_STATE,
+          onTrackLoaded: vi.fn(),
+          onStatusChange: vi.fn(),
+          onStemVolumeChange: vi.fn(),
+          onStemMuteToggle: vi.fn(),
+          onStemSoloToggle: vi.fn(),
+          onStemPanChange: vi.fn(),
+          onMasterVolumeChange: vi.fn(),
+          onDjFilterChange: vi.fn(),
+          onGestureStateChange: vi.fn(),
+          onToggleGestureEnabled: vi.fn(),
+        })
+      );
+
+      expect(html).toContain('Console Mixer');
+      expect(html).toContain('Vision HUD');
+      expect(html).toContain('Reactive Stage');
+      expect(html).toContain('Neural Ingestion');
+      expect(html).toContain('4-Channel Stem Mixer Deck');
     });
   });
 });
