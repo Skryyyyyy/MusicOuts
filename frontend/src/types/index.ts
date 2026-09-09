@@ -6,6 +6,8 @@ export type StemType = 'vocals' | 'drums' | 'bass' | 'other';
 
 export const STEM_TYPES: StemType[] = ['vocals', 'drums', 'bass', 'other'];
 
+export type StudioView = 'arrangement' | 'mixer' | 'gesture' | 'visualizer' | 'ingestion';
+
 export interface StemState {
   volume: number; // 0.0 to 1.0 (or higher if boosted)
   muted: boolean;

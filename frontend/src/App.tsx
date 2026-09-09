@@ -1,11 +1,22 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { StemType, STEM_TYPES, StemState, GestureState, ProcessStatus, TrackMetadata } from './types';
-import { AudioGraphEngine } from './engine/audioGraph';
-import { GestureTracker, DEFAULT_GESTURE_STATE } from './engine/gestureTracker';
+import React, { useEffect, useRef, useState, useCallback } from "react";
+import {
+  StemType,
+  STEM_TYPES,
+  StemState,
+  GestureState,
+  ProcessStatus,
+  TrackMetadata,
+  StudioView,
+} from "./types";
+import { AudioGraphEngine } from "./engine/audioGraph";
+import { GestureTracker, DEFAULT_GESTURE_STATE } from "./engine/gestureTracker";
 
-import { DawTransport } from './components/DawTransport';
-import { ArrangementView } from './components/ArrangementView';
-import { DawInspector } from './components/DawInspector';
+import { DawTransport } from "./components/DawTransport";
+import { ArrangementView } from "./components/ArrangementView";
+import { MixConsoleView } from "./components/views/MixConsoleView";
+import { GestureLabView } from "./components/views/GestureLabView";
+import { VisualStageView } from "./components/views/VisualStageView";
+import { DemixLabView } from "./components/views/DemixLabView";
 
 const INITIAL_STEM_STATES: Record<StemType, StemState> = {
   vocals: { volume: 0.85, muted: false, solo: false, pan: 0.0 },
@@ -15,6 +26,9 @@ const INITIAL_STEM_STATES: Record<StemType, StemState> = {
 };
 
 export const App: React.FC = () => {
+  // Navigation & Workspace View State
+  const [currentView, setCurrentView] = useState<StudioView>("arrangement");
+
   // Audio Engine & Gesture Tracker references
   const audioGraphRef = useRef<AudioGraphEngine | null>(null);
   const gestureTrackerRef = useRef<GestureTracker | null>(null);
@@ -36,18 +50,19 @@ export const App: React.FC = () => {
 
   // DJ Filter State
   const [djFilterCutoff, setDjFilterCutoff] = useState<number>(20000);
-  const [djFilterType, setDjFilterType] = useState<'lowpass' | 'highpass'>('lowpass');
+  const [djFilterType, setDjFilterType] = useState<"lowpass" | "highpass">("lowpass");
   const [djFilterQ, setDjFilterQ] = useState<number>(1.0);
 
   // Vision & Gesture Telemetry State
   const [isGestureEnabled, setIsGestureEnabled] = useState<boolean>(false);
   const [gestureState, setGestureState] = useState<GestureState>(DEFAULT_GESTURE_STATE);
 
-  // Processing SSE Status
+  // Stems Loading & Processing SSE Status
+  const [isLoadingStems, setIsLoadingStems] = useState<boolean>(false);
   const [processStatus, setProcessStatus] = useState<ProcessStatus>({
-    stage: 'ready',
+    stage: "ready",
     progress: 100,
-    message: 'Demucs HT Hybrid Transformer Ready',
+    message: "Demucs HT Hybrid Transformer Ready",
   });
 
   // Initialize AudioGraphEngine and GestureTracker on mount
@@ -60,7 +75,7 @@ export const App: React.FC = () => {
 
     // Initialize MediaPipe Vision WASM assets asynchronously
     gestureTracker.initialize().catch((err) => {
-      console.warn('GestureTracker initialize background notice:', err);
+      console.warn("GestureTracker initialize background notice:", err);
     });
 
     // Register onEnded callback
@@ -117,7 +132,7 @@ export const App: React.FC = () => {
       // 2. Left Hand Modulation (Vocals Level & Solo/Mute)
       if (state.leftHand.present) {
         const vocalVol = state.leftHand.height;
-        audioGraph.setStemVolume('vocals', vocalVol, 0.04);
+        audioGraph.setStemVolume("vocals", vocalVol, 0.04);
         setStems((prev) => ({
           ...prev,
           vocals: {
@@ -127,14 +142,14 @@ export const App: React.FC = () => {
             muted: state.leftHand.isFist,
           },
         }));
-        audioGraph.setStemSolo('vocals', state.leftHand.isPinching, 0.04);
-        audioGraph.setStemMute('vocals', state.leftHand.isFist, 0.04);
+        audioGraph.setStemSolo("vocals", state.leftHand.isPinching, 0.04);
+        audioGraph.setStemMute("vocals", state.leftHand.isFist, 0.04);
       }
 
       // 3. Right Hand Modulation (Instruments Level & DJ Filter Sweep)
       if (state.rightHand.present) {
         const otherVol = state.rightHand.height;
-        audioGraph.setStemVolume('other', otherVol, 0.04);
+        audioGraph.setStemVolume("other", otherVol, 0.04);
         setStems((prev) => ({
           ...prev,
           other: { ...prev.other, volume: otherVol },
@@ -149,10 +164,11 @@ export const App: React.FC = () => {
     [masterVolume, djFilterQ]
   );
 
-  // Track Ingestion Handler
+  // Track Ingestion Handler (Demucs AI finishes separation)
   const handleTrackLoaded = async (loadedTrack: TrackMetadata) => {
     setTrackMetadata(loadedTrack);
     setDuration(loadedTrack.duration);
+    setIsLoadingStems(true);
 
     const audioGraph = audioGraphRef.current;
     if (audioGraph) {
@@ -167,9 +183,17 @@ export const App: React.FC = () => {
         }
         audioGraph.setMasterVolume(masterVolume, 0);
         audioGraph.setDjFilter(djFilterCutoff, djFilterType, djFilterQ, 0);
+        setIsLoadingStems(false);
+
+        // Auto-start playback on ready so audio plays immediately!
+        await audioGraph.play();
+        setIsPlaying(true);
       } catch (err) {
-        console.error('Failed to load stems into Web Audio Graph:', err);
+        console.error("Failed to load stems into Web Audio Graph:", err);
+        setIsLoadingStems(false);
       }
+    } else {
+      setIsLoadingStems(false);
     }
   };
 
@@ -177,6 +201,16 @@ export const App: React.FC = () => {
   const handlePlayToggle = async () => {
     const audioGraph = audioGraphRef.current;
     if (!audioGraph) return;
+
+    if (!trackMetadata) {
+      setCurrentView("ingestion");
+      setProcessStatus({
+        stage: "ready",
+        progress: 0,
+        message: "Please paste a YouTube URL or drop an audio file in the Demix Lab to begin!",
+      });
+      return;
+    }
 
     if (isPlaying) {
       audioGraph.pause();
@@ -276,28 +310,83 @@ export const App: React.FC = () => {
     audioGraphRef.current?.setMasterVolume(vol);
   };
 
-  const handleDjFilterChange = (cutoff: number, type: 'lowpass' | 'highpass', q: number = djFilterQ) => {
+  const handleDjFilterChange = (cutoff: number, type: "lowpass" | "highpass", q: number = djFilterQ) => {
     setDjFilterCutoff(cutoff);
     setDjFilterType(type);
     setDjFilterQ(q);
     audioGraphRef.current?.setDjFilter(cutoff, type, q);
   };
 
+  // Keyboard Shortcuts Navigation (1-5 for workspaces, Space for Play/Pause, L for Loop, Home for Reset)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore when focused in input or textarea
+      if (
+        document.activeElement?.tagName === "INPUT" ||
+        document.activeElement?.tagName === "TEXTAREA"
+      ) {
+        return;
+      }
+
+      switch (e.key) {
+        case "1":
+          setCurrentView("arrangement");
+          break;
+        case "2":
+          setCurrentView("mixer");
+          break;
+        case "3":
+          setCurrentView("gesture");
+          break;
+        case "4":
+          setCurrentView("visualizer");
+          break;
+        case "5":
+          setCurrentView("ingestion");
+          break;
+        case " ":
+          e.preventDefault();
+          handlePlayToggle();
+          break;
+        case "l":
+        case "L":
+          handleLoopToggle();
+          break;
+        case "Home":
+        case "r":
+        case "R":
+          handleReset();
+          break;
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isPlaying, isReadyCheck(), isLooping, trackMetadata]);
+
+  function isReadyCheck() {
+    return trackMetadata !== null && !isLoadingStems && processStatus.stage !== "downloading" && processStatus.stage !== "separating";
+  }
+
   return (
     <div className="min-h-screen bg-[#0e0f12] text-zinc-100 flex flex-col font-sans selection:bg-cyan-500/20 select-none">
-      {/* 1. Top Transport Header Bar */}
+      {/* 1. Omnipresent Top Studio Transport & Workspace Navigator */}
       <DawTransport
         isPlaying={isPlaying}
         currentTime={currentTime}
         duration={duration}
         isLooping={isLooping}
-        isReady={true}
+        isReady={trackMetadata !== null && !isLoadingStems && processStatus.stage !== "downloading" && processStatus.stage !== "separating"}
+        isLoadingStems={isLoadingStems}
+        processStatus={processStatus}
         masterVolume={masterVolume}
         djFilterCutoff={djFilterCutoff}
         djFilterType={djFilterType}
         isDucking={isDucking}
         duckingReduction={duckingReduction}
         audioGraph={audioGraphRef.current}
+        currentView={currentView}
+        onViewChange={setCurrentView}
         onPlayToggle={handlePlayToggle}
         onStop={handleStop}
         onSeek={handleSeek}
@@ -308,60 +397,92 @@ export const App: React.FC = () => {
         onDjFilterChange={handleDjFilterChange}
       />
 
-      {/* 2. Main DAW Workspace */}
-      <main className="flex-1 p-2.5 flex flex-col gap-2.5 max-w-[1920px] w-full mx-auto overflow-hidden">
-        {/* Top Section: Multi-track Stem Arrangement Timeline */}
-        <ArrangementView
-          audioGraph={audioGraphRef.current}
-          trackMetadata={trackMetadata}
-          currentTime={currentTime}
-          duration={duration}
-          isPlaying={isPlaying}
-          isLooping={isLooping}
-          stemStates={stems}
-          gestureState={gestureState}
-          onSeek={handleSeek}
-          onStemVolumeChange={handleStemVolumeChange}
-          onStemMuteToggle={handleStemMuteToggle}
-          onStemSoloToggle={handleStemSoloToggle}
-          onStemPanChange={handleStemPanChange}
-          className="flex-1 min-h-[320px]"
-        />
+      {/* 2. Main Studio Workspace (Dedicated Page Views) */}
+      <main className="flex-1 p-3 flex flex-col max-w-[1920px] w-full mx-auto overflow-hidden">
+        {/* Page 1: Multi-track Arrangement Window */}
+        {currentView === "arrangement" && (
+          <ArrangementView
+            audioGraph={audioGraphRef.current}
+            trackMetadata={trackMetadata}
+            currentTime={currentTime}
+            duration={duration}
+            isPlaying={isPlaying}
+            isLooping={isLooping}
+            stemStates={stems}
+            gestureState={gestureState}
+            onSeek={handleSeek}
+            onStemVolumeChange={handleStemVolumeChange}
+            onStemMuteToggle={handleStemMuteToggle}
+            onStemSoloToggle={handleStemSoloToggle}
+            onStemPanChange={handleStemPanChange}
+            className="flex-1 h-full min-h-[500px]"
+          />
+        )}
 
-        {/* Bottom Section: Collapsible Studio Inspector Drawer */}
-        <DawInspector
-          audioGraph={audioGraphRef.current}
-          gestureTracker={gestureTrackerRef.current}
-          trackMetadata={trackMetadata}
-          currentTime={currentTime}
-          isPlaying={isPlaying}
-          stemStates={stems}
-          masterVolume={masterVolume}
-          djFilterCutoff={djFilterCutoff}
-          djFilterType={djFilterType}
-          djFilterQ={djFilterQ}
-          isGestureEnabled={isGestureEnabled}
-          gestureState={gestureState}
-          onTrackLoaded={handleTrackLoaded}
-          onStatusChange={setProcessStatus}
-          onStemVolumeChange={handleStemVolumeChange}
-          onStemMuteToggle={handleStemMuteToggle}
-          onStemSoloToggle={handleStemSoloToggle}
-          onStemPanChange={handleStemPanChange}
-          onMasterVolumeChange={handleMasterVolumeChange}
-          onDjFilterChange={handleDjFilterChange}
-          onGestureStateChange={handleGestureStateChange}
-          onToggleGestureEnabled={setIsGestureEnabled}
-        />
+        {/* Page 2: Full Studio MixConsole Desk */}
+        {currentView === "mixer" && (
+          <MixConsoleView
+            audioGraph={audioGraphRef.current}
+            stemStates={stems}
+            masterVolume={masterVolume}
+            djFilterCutoff={djFilterCutoff}
+            djFilterType={djFilterType}
+            djFilterQ={djFilterQ}
+            isDucking={isDucking}
+            duckingReduction={duckingReduction}
+            onStemVolumeChange={handleStemVolumeChange}
+            onStemMuteToggle={handleStemMuteToggle}
+            onStemSoloToggle={handleStemSoloToggle}
+            onStemPanChange={handleStemPanChange}
+            onMasterVolumeChange={handleMasterVolumeChange}
+            onDjFilterChange={handleDjFilterChange}
+            onDuckingToggle={handleDuckingToggle}
+            className="flex-1 h-full min-h-[500px]"
+          />
+        )}
+
+        {/* Page 3: Vision AI & Gesture Lab */}
+        {currentView === "gesture" && (
+          <GestureLabView
+            gestureTracker={gestureTrackerRef.current}
+            gestureState={gestureState}
+            isGestureEnabled={isGestureEnabled}
+            onToggleGestureEnabled={setIsGestureEnabled}
+            onGestureStateChange={handleGestureStateChange}
+            className="flex-1 h-full min-h-[500px]"
+          />
+        )}
+
+        {/* Page 4: Audio-Reactive Visual Stage */}
+        {currentView === "visualizer" && (
+          <VisualStageView
+            audioGraph={audioGraphRef.current}
+            trackMetadata={trackMetadata}
+            currentTime={currentTime}
+            isPlaying={isPlaying}
+            className="flex-1 h-full min-h-[500px]"
+          />
+        )}
+
+        {/* Page 5: Neural Demixing & Media Ingestion Lab */}
+        {currentView === "ingestion" && (
+          <DemixLabView
+            trackMetadata={trackMetadata}
+            processStatus={processStatus}
+            onTrackLoaded={handleTrackLoaded}
+            onStatusChange={setProcessStatus}
+            className="flex-1 h-full min-h-[500px]"
+          />
+        )}
       </main>
 
-      {/* 3. Status Bar Footer */}
+      {/* 3. Studio Status Bar Footer */}
       <footer className="h-6 border-t border-[#262830] bg-[#17181d] px-3 flex items-center justify-between text-[10px] font-mono text-zinc-400 select-none">
         <div className="flex items-center space-x-3">
           <div className="flex items-center space-x-1.5">
             <span
               className={`w-1.5 h-1.5 rounded-full inline-block ${
-                processStatus.stage === 'error' ? 'bg-red-500' : 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]'
+                processStatus.stage === "error" ? "bg-red-500" : "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]"
               }`}
             />
             <span className="text-zinc-300">Demucs Engine: {processStatus.message}</span>
@@ -369,12 +490,14 @@ export const App: React.FC = () => {
           <span className="text-zinc-700">|</span>
           <span>Web Audio DSP: 4-Track 64-bit Flow</span>
           <span className="text-zinc-700">|</span>
-          <span className={isDucking ? 'text-purple-400 font-semibold' : 'text-zinc-500'}>
-            Sidechain Ducking: {isDucking ? 'ACTIVE' : 'OFF'}
+          <span className={isDucking ? "text-purple-400 font-semibold" : "text-zinc-500"}>
+            Sidechain Ducking: {isDucking ? "ACTIVE" : "OFF"}
           </span>
         </div>
         <div className="flex items-center space-x-3">
-          <span>Dual Fist Kill Switch: {gestureState.isDualFist ? 'ACTIVE' : 'READY'}</span>
+          <span>Active View: <strong className="text-cyan-300 uppercase">{currentView}</strong></span>
+          <span className="text-zinc-700">|</span>
+          <span>Dual Fist Kill Switch: {gestureState.isDualFist ? "ACTIVE" : "READY"}</span>
           <span className="text-zinc-700">|</span>
           <span className="text-cyan-400 font-medium">MusicOuts Pro DAW</span>
         </div>

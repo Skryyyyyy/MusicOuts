@@ -42,6 +42,13 @@ def extract_youtube_info(url: str) -> dict:
         "extract_flat": False,
         "noplaylist": True,
         "skip_download": True,
+        "nocheckcertificate": True,
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "extractor_args": {
+            "youtube": {
+                "player_client": ["android", "web"],
+            }
+        },
     }
     if FFMPEG_EXE and os.path.exists(FFMPEG_EXE):
         ydl_opts["ffmpeg_location"] = FFMPEG_EXE
@@ -98,35 +105,36 @@ def _extract_muted_video(input_path: Path, output_mp4_path: Path) -> bool:
             "-y",
             "-i", str(input_path),
             "-an",
-            "-c:v", "copy",
+            "-vcodec", "copy",
             str(output_mp4_path)
         ]
         result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        if result.returncode != 0 or not output_mp4_path.exists() or output_mp4_path.stat().st_size == 0:
-            # Fallback re-encode if stream copy fails
+        if not output_mp4_path.exists() or output_mp4_path.stat().st_size == 0:
+            # Fallback to re-encoding if stream copy fails
             cmd_fallback = [
                 FFMPEG_EXE,
                 "-y",
                 "-i", str(input_path),
                 "-an",
-                "-c:v", "libx264",
-                "-preset", "veryfast",
-                "-pix_fmt", "yuv420p",
+                "-vcodec", "libx264",
+                "-preset", "ultrafast",
+                "-crf", "28",
                 str(output_mp4_path)
             ]
             subprocess.run(cmd_fallback, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
         return output_mp4_path.exists() and output_mp4_path.stat().st_size > 0
     except Exception as exc:
-        logger.error(f"FFmpeg muted video extraction failed for {input_path}: {exc}")
+        logger.warning(f"Failed to extract muted video from {input_path}: {exc}")
         return False
 
 
-def _get_audio_duration(audio_path: Path) -> float:
-    """Gets audio duration in seconds using soundfile or fallback."""
+def _get_audio_duration(wav_path: Path) -> float:
+    """Read actual duration of WAV file using soundfile."""
     try:
-        info = sf.info(str(audio_path))
+        info = sf.info(str(wav_path))
         return float(info.duration)
-    except Exception:
+    except Exception as exc:
+        logger.warning(f"Could not read duration with soundfile: {exc}")
         return 0.0
 
 
@@ -167,6 +175,13 @@ def download_from_youtube(url: str, progress_hook: Optional[Callable[[Dict], Non
         "quiet": True,
         "no_warnings": True,
         "noplaylist": True,
+        "nocheckcertificate": True,
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "extractor_args": {
+            "youtube": {
+                "player_client": ["android", "web"],
+            }
+        },
     }
     if FFMPEG_EXE and os.path.exists(FFMPEG_EXE):
         ydl_audio_opts["ffmpeg_location"] = FFMPEG_EXE
@@ -205,7 +220,14 @@ def download_from_youtube(url: str, progress_hook: Optional[Callable[[Dict], Non
             "quiet": True,
             "no_warnings": True,
             "noplaylist": True,
+            "nocheckcertificate": True,
             "max_filesize": 250 * 1024 * 1024,  # 250MB limit
+            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "extractor_args": {
+                "youtube": {
+                    "player_client": ["android", "web"],
+                }
+            },
         }
         if FFMPEG_EXE and os.path.exists(FFMPEG_EXE):
             ydl_video_opts["ffmpeg_location"] = FFMPEG_EXE

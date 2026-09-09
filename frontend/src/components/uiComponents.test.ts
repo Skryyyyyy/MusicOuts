@@ -10,6 +10,10 @@ import { MasterControls } from './MasterControls';
 import { DawTransport } from './DawTransport';
 import { ArrangementView } from './ArrangementView';
 import { DawInspector } from './DawInspector';
+import { MixConsoleView } from "./views/MixConsoleView";
+import { GestureLabView } from "./views/GestureLabView";
+import { VisualStageView } from "./views/VisualStageView";
+import { DemixLabView } from "./views/DemixLabView";
 import { StemType, StemState, GestureState, TrackMetadata } from '../types';
 import { DEFAULT_GESTURE_STATE } from '../engine/gestureTracker';
 
@@ -356,6 +360,84 @@ describe('UI Studio Deck Components', () => {
       expect(html).toContain('Reactive Stage');
       expect(html).toContain('Neural Ingestion');
       expect(html).toContain('4-Channel Stem Mixer Deck');
+    });
+  });
+  describe("Dedicated Studio View Pages", () => {
+    it("renders MixConsoleView with 4 channel strips and master bus", () => {
+      const html = renderToString(
+        React.createElement(MixConsoleView, {
+          audioGraph: null,
+          stemStates: MOCK_STEM_STATES,
+          masterVolume: 1.0,
+          djFilterCutoff: 20000,
+          djFilterType: "lowpass",
+          isDucking: true,
+          duckingReduction: 0.75,
+          onStemVolumeChange: vi.fn(),
+          onStemMuteToggle: vi.fn(),
+          onStemSoloToggle: vi.fn(),
+          onStemPanChange: vi.fn(),
+          onMasterVolumeChange: vi.fn(),
+          onDjFilterChange: vi.fn(),
+          onDuckingToggle: vi.fn(),
+        })
+      );
+
+      expect(html).toContain("MixConsole • 4-Stem Studio Desk");
+      expect(html).toContain("01 VOCALS");
+      expect(html).toContain("02 DRUMS");
+      expect(html).toContain("03 BASS");
+      expect(html).toContain("04 OTHER");
+      expect(html).toContain("MASTER BUSS");
+      expect(html).toContain("Vocal Auto-Ducking:");
+      expect(html).toContain("ENGAGED");
+    });
+
+    it("renders GestureLabView with camera viewport and telemetry cards", () => {
+      const html = renderToString(
+        React.createElement(GestureLabView, {
+          gestureTracker: null,
+          gestureState: DEFAULT_GESTURE_STATE,
+          isGestureEnabled: false,
+          onToggleGestureEnabled: vi.fn(),
+          onGestureStateChange: vi.fn(),
+        })
+      );
+
+      expect(html).toContain("Vision AI &amp; Spatial Gesture Lab");
+      expect(html).toContain("Spatial Camera Viewport");
+      expect(html).toContain("Live Modulation Telemetry");
+      expect(html).toContain("Gesture Mapping Reference");
+    });
+
+    it("renders VisualStageView with reactive visualizer canvas and track metadata", () => {
+      const html = renderToString(
+        React.createElement(VisualStageView, {
+          audioGraph: null,
+          trackMetadata: MOCK_TRACK,
+          currentTime: 30,
+          isPlaying: true,
+        })
+      );
+
+      expect(html).toContain("Audio-Reactive Visual Stage");
+      expect(html).toContain("Neon Cyber Anthem");
+    });
+
+    it("renders DemixLabView with ingestion lab and stem export buttons", () => {
+      const html = renderToString(
+        React.createElement(DemixLabView, {
+          trackMetadata: MOCK_TRACK,
+          processStatus: { stage: "ready", progress: 100, message: "Ready" },
+          onTrackLoaded: vi.fn(),
+          onStatusChange: vi.fn(),
+        })
+      );
+
+      expect(html).toContain("Neural AI Demixer &amp; Media Ingestion Lab");
+      expect(html).toContain("Active Track Inspector");
+      expect(html).toContain("Export Separated WAV Stems:");
+      expect(html).toContain("Neon Cyber Anthem");
     });
   });
 });
