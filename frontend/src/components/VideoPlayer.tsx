@@ -14,10 +14,10 @@ export interface VideoPlayerProps {
 }
 
 const STEM_COLORS: Record<StemType, string> = {
-  vocals: '#00f3ff', // Neon Cyan
-  drums: '#ff007f',  // Neon Magenta
-  bass: '#ffe600',   // Neon Yellow
-  other: '#00ff66',  // Neon Green
+  vocals: '#ffffff', // Pure White
+  drums: '#e4e4e7',  // Light Silver
+  bass: '#d4d4d8',   // Medium Silver
+  other: '#a1a1aa',  // Dark Silver
 };
 
 export const VideoPlayer: React.FC<VideoPlayerProps> = ({
@@ -94,7 +94,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
       const height = rect.height;
 
       // Dark background with subtle alpha fade for trails
-      ctx.fillStyle = 'rgba(10, 11, 16, 0.35)';
+      ctx.fillStyle = 'rgba(6, 6, 8, 0.4)';
       ctx.fillRect(0, 0, width, height);
 
       if (audioGraph) {
@@ -119,14 +119,14 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
             const x = i * (barWidth + 2);
             const y = height - barHeight;
 
-            // Gradient per bar based on dominant frequencies
+            // Monochromatic gradient per bar
             const gradient = ctx.createLinearGradient(0, height, 0, y);
-            gradient.addColorStop(0, 'rgba(0, 243, 255, 0.9)');
-            gradient.addColorStop(0.5, 'rgba(255, 0, 127, 0.8)');
-            gradient.addColorStop(1, 'rgba(255, 230, 0, 1.0)');
+            gradient.addColorStop(0, 'rgba(255, 255, 255, 0.95)');
+            gradient.addColorStop(0.5, 'rgba(212, 212, 216, 0.8)');
+            gradient.addColorStop(1, 'rgba(113, 113, 122, 0.6)');
 
             ctx.fillStyle = gradient;
-            ctx.shadowColor = 'rgba(0, 243, 255, 0.4)';
+            ctx.shadowColor = 'rgba(255, 255, 255, 0.25)';
             ctx.shadowBlur = 8;
             ctx.fillRect(x, y, barWidth, barHeight);
 
@@ -182,18 +182,18 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
           const bassEnergy = bassSum / (16 * 255);
           const currentRadius = baseRadius + bassEnergy * 25;
 
-          // Inner pulsing core
+          // Inner pulsing core (monochromatic white glow)
           ctx.beginPath();
           ctx.arc(centerX, centerY, currentRadius * 0.75, 0, Math.PI * 2);
-          ctx.fillStyle = `rgba(0, 243, 255, ${0.1 + bassEnergy * 0.35})`;
-          ctx.shadowColor = '#00f3ff';
+          ctx.fillStyle = `rgba(255, 255, 255, ${0.1 + bassEnergy * 0.35})`;
+          ctx.shadowColor = '#ffffff';
           ctx.shadowBlur = 20 * (1 + bassEnergy);
           ctx.fill();
 
           ctx.beginPath();
           ctx.arc(centerX, centerY, currentRadius * 0.5, 0, Math.PI * 2);
-          ctx.fillStyle = `rgba(255, 0, 127, ${0.15 + bassEnergy * 0.4})`;
-          ctx.shadowColor = '#ff007f';
+          ctx.fillStyle = `rgba(228, 228, 231, ${0.15 + bassEnergy * 0.4})`;
+          ctx.shadowColor = '#e4e4e7';
           ctx.shadowBlur = 25 * (1 + bassEnergy);
           ctx.fill();
 
@@ -213,20 +213,20 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
             ctx.moveTo(xStart, yStart);
             ctx.lineTo(xEnd, yEnd);
             ctx.lineWidth = 3;
-            ctx.strokeStyle = i % 2 === 0 ? '#00f3ff' : '#ff007f';
-            ctx.shadowColor = i % 2 === 0 ? 'rgba(0, 243, 255, 0.8)' : 'rgba(255, 0, 127, 0.8)';
+            ctx.strokeStyle = i % 2 === 0 ? '#ffffff' : '#d4d4d8';
+            ctx.shadowColor = 'rgba(255, 255, 255, 0.7)';
             ctx.shadowBlur = 10;
             ctx.stroke();
           }
         } else if (mode === 'oscilloscope') {
-          // MODE 3: Time-Domain Waveform Oscilloscope
+          // MODE 3: Time-Domain Waveform Oscilloscope (pure white beam)
           const waveData = audioGraph.getWaveformData();
           const sliceWidth = width / waveData.length;
 
           ctx.beginPath();
           ctx.lineWidth = 3;
-          ctx.strokeStyle = '#00ff66';
-          ctx.shadowColor = '#00ff66';
+          ctx.strokeStyle = '#ffffff';
+          ctx.shadowColor = 'rgba(255, 255, 255, 0.8)';
           ctx.shadowBlur = 14;
 
           let x = 0;
@@ -257,7 +257,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         }
       } else {
         // Idle animation when audio is not playing
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
         ctx.font = '12px monospace';
         ctx.textAlign = 'center';
         ctx.fillText('AUDIO VISUALIZER STANDBY', width / 2, height / 2);
@@ -277,14 +277,14 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   return (
     <div className={`relative bg-deck-card border border-deck-border rounded-xl overflow-hidden shadow-2xl flex flex-col ${className}`}>
       {/* Header Bar */}
-      <div className="px-4 py-2.5 bg-deck-dark/80 backdrop-blur-md border-b border-deck-border flex items-center justify-between z-20">
+      <div className="px-4 py-2.5 bg-deck-dark/90 backdrop-blur-md border-b border-deck-border flex items-center justify-between z-20">
         <div className="flex items-center space-x-2">
-          <Activity className="w-4 h-4 text-neon-cyan" />
-          <span className="text-xs font-bold tracking-wider text-slate-200 uppercase font-mono">
+          <Activity className="w-4 h-4 text-white" />
+          <span className="text-xs font-bold tracking-wider text-white uppercase font-mono">
             Reactive Audio Stage
           </span>
           {trackMetadata?.title && (
-            <span className="text-[11px] text-slate-400 font-mono truncate max-w-[200px]">
+            <span className="text-[11px] text-zinc-400 font-mono truncate max-w-[200px]">
               - {trackMetadata.title}
             </span>
           )}
@@ -296,8 +296,8 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
             onClick={() => setMode('bars')}
             className={`px-2.5 py-1 rounded-md transition-colors flex items-center space-x-1 ${
               mode === 'bars'
-                ? 'bg-deck-card text-neon-cyan shadow-sm font-bold'
-                : 'text-slate-400 hover:text-slate-200'
+                ? 'bg-white text-black font-bold shadow-mono-glow'
+                : 'text-zinc-400 hover:text-white'
             }`}
             title="Frequency Bars"
           >
@@ -309,8 +309,8 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
             onClick={() => setMode('circular')}
             className={`px-2.5 py-1 rounded-md transition-colors flex items-center space-x-1 ${
               mode === 'circular'
-                ? 'bg-deck-card text-neon-magenta shadow-sm font-bold'
-                : 'text-slate-400 hover:text-slate-200'
+                ? 'bg-white text-black font-bold shadow-mono-glow'
+                : 'text-zinc-400 hover:text-white'
             }`}
             title="Circular Spectrum"
           >
@@ -322,8 +322,8 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
             onClick={() => setMode('oscilloscope')}
             className={`px-2.5 py-1 rounded-md transition-colors flex items-center space-x-1 ${
               mode === 'oscilloscope'
-                ? 'bg-deck-card text-neon-green shadow-sm font-bold'
-                : 'text-slate-400 hover:text-slate-200'
+                ? 'bg-white text-black font-bold shadow-mono-glow'
+                : 'text-zinc-400 hover:text-white'
             }`}
             title="Waveform Scope"
           >
@@ -336,8 +336,8 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
               onClick={() => setMode('video')}
               className={`px-2.5 py-1 rounded-md transition-colors flex items-center space-x-1 ${
                 mode === 'video'
-                  ? 'bg-deck-card text-neon-yellow shadow-sm font-bold'
-                  : 'text-slate-400 hover:text-slate-200'
+                  ? 'bg-white text-black font-bold shadow-mono-glow'
+                  : 'text-zinc-400 hover:text-white'
               }`}
               title="Phase-Locked Video"
             >
@@ -351,7 +351,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
       {/* Stage Viewport */}
       <div className="relative flex-1 bg-black min-h-[360px] flex items-center justify-center overflow-hidden">
         {/* Background Grid */}
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,#1f293d10_1px,transparent_1px),linear-gradient(to_bottom,#1f293d10_1px,transparent_1px)] bg-[size:1.5rem_1.5rem] pointer-events-none" />
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff08_1px,transparent_1px),linear-gradient(to_bottom,#ffffff08_1px,transparent_1px)] bg-[size:1.5rem_1.5rem] pointer-events-none" />
 
         {/* Video Mode Player */}
         {trackMetadata?.hasVideo && trackMetadata.videoUrl && (
@@ -376,22 +376,22 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
         {/* Stem Legend in Bars Mode */}
         {mode === 'bars' && (
-          <div className="absolute bottom-3 left-4 bg-deck-dark/80 backdrop-blur-md border border-deck-border rounded-lg px-3 py-1.5 flex items-center space-x-4 text-[10px] font-mono z-20">
+          <div className="absolute bottom-3 left-4 bg-deck-dark/90 backdrop-blur-md border border-deck-border rounded-lg px-3 py-1.5 flex items-center space-x-4 text-[10px] font-mono z-20">
             <div className="flex items-center space-x-1.5">
-              <span className="w-2 h-2 rounded-full bg-neon-cyan" />
-              <span className="text-slate-300">Vocals</span>
+              <span className="w-2 h-2 rounded-full bg-white" />
+              <span className="text-zinc-200">Vocals</span>
             </div>
             <div className="flex items-center space-x-1.5">
-              <span className="w-2 h-2 rounded-full bg-neon-magenta" />
-              <span className="text-slate-300">Drums</span>
+              <span className="w-2 h-2 rounded-full bg-zinc-300" />
+              <span className="text-zinc-200">Drums</span>
             </div>
             <div className="flex items-center space-x-1.5">
-              <span className="w-2 h-2 rounded-full bg-neon-yellow" />
-              <span className="text-slate-300">Bass</span>
+              <span className="w-2 h-2 rounded-full bg-zinc-400" />
+              <span className="text-zinc-200">Bass</span>
             </div>
             <div className="flex items-center space-x-1.5">
-              <span className="w-2 h-2 rounded-full bg-neon-green" />
-              <span className="text-slate-300">Other</span>
+              <span className="w-2 h-2 rounded-full bg-zinc-600" />
+              <span className="text-zinc-200">Other</span>
             </div>
           </div>
         )}

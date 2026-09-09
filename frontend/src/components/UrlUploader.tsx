@@ -221,12 +221,12 @@ export const UrlUploader: React.FC<UrlUploaderProps> = ({
       {/* Header */}
       <div className="flex items-center justify-between pb-3 border-b border-deck-border mb-4">
         <div className="flex items-center space-x-2">
-          <Sparkles className="w-4 h-4 text-neon-cyan" />
-          <span className="text-sm font-bold tracking-wider text-slate-100 uppercase font-mono">
+          <Sparkles className="w-4 h-4 text-white" />
+          <span className="text-sm font-bold tracking-wider text-white uppercase font-mono">
             Demucs Neural Stem Ingestion
           </span>
         </div>
-        <span className="text-[10px] text-slate-400 font-mono">
+        <span className="text-[10px] text-zinc-400 font-mono">
           HTDemucs v4 Hybrid Transformer
         </span>
       </div>
@@ -236,8 +236,8 @@ export const UrlUploader: React.FC<UrlUploaderProps> = ({
         {/* YouTube Input */}
         <form onSubmit={handleYoutubeSubmit} className="flex flex-col sm:flex-row gap-2">
           <div className="relative flex-1">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-              <Youtube className="w-4 h-4 text-red-500" />
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-zinc-400">
+              <Youtube className="w-4 h-4 text-zinc-300" />
             </div>
             <input
               type="text"
@@ -245,7 +245,7 @@ export const UrlUploader: React.FC<UrlUploaderProps> = ({
               onChange={(e) => setUrl(e.target.value)}
               disabled={isProcessing}
               placeholder="Paste YouTube music or video URL..."
-              className="w-full pl-9 pr-4 py-2.5 bg-deck-dark border border-deck-border rounded-lg text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-neon-cyan/80 transition-colors disabled:opacity-50 font-mono"
+              className="w-full pl-9 pr-4 py-2.5 bg-deck-dark border border-deck-border rounded-lg text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-white transition-colors disabled:opacity-50 font-mono"
             />
           </div>
 
@@ -253,16 +253,16 @@ export const UrlUploader: React.FC<UrlUploaderProps> = ({
             <button
               type="submit"
               disabled={isProcessing || !url.trim()}
-              className="px-4 py-2 bg-gradient-to-r from-neon-cyan to-neon-magenta text-deck-dark font-extrabold text-xs rounded-lg shadow-neon-cyan/40 shadow-md hover:scale-102 transition-transform disabled:opacity-50 disabled:pointer-events-none flex items-center space-x-1.5 font-mono"
+              className="px-4 py-2 bg-white text-black font-extrabold text-xs rounded-lg shadow-mono-glow hover:bg-zinc-200 transition-all disabled:opacity-50 disabled:pointer-events-none flex items-center space-x-1.5 font-mono"
             >
               {isProcessing ? (
                 <>
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin text-black" />
                   <span>Processing...</span>
                 </>
               ) : (
                 <>
-                  <Sparkles className="w-3.5 h-3.5" />
+                  <Sparkles className="w-3.5 h-3.5 text-black" />
                   <span>Demix Stems</span>
                 </>
               )}
@@ -278,8 +278,8 @@ export const UrlUploader: React.FC<UrlUploaderProps> = ({
           onClick={() => fileInputRef.current?.click()}
           className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition-all ${
             isDragging
-              ? 'border-neon-cyan bg-neon-cyan/10'
-              : 'border-deck-border hover:border-slate-500 bg-deck-dark/50'
+              ? 'border-white bg-white/10 shadow-mono-glow'
+              : 'border-deck-border hover:border-zinc-500 bg-deck-dark/50'
           }`}
         >
           <input
@@ -294,11 +294,11 @@ export const UrlUploader: React.FC<UrlUploaderProps> = ({
             }}
           />
           <div className="flex flex-col items-center justify-center space-y-1">
-            <Upload className="w-5 h-5 text-neon-cyan" />
-            <span className="text-xs font-semibold text-slate-300">
-              Drag &amp; drop audio file, or <span className="text-neon-cyan underline">browse</span>
+            <Upload className="w-5 h-5 text-white" />
+            <span className="text-xs font-semibold text-zinc-200">
+              Drag &amp; drop audio file, or <span className="text-white underline">browse</span>
             </span>
-            <span className="text-[10px] text-slate-500 font-mono">
+            <span className="text-[10px] text-zinc-500 font-mono">
               MP3, WAV, FLAC, AAC, MP4 up to 100MB
             </span>
           </div>
@@ -306,8 +306,8 @@ export const UrlUploader: React.FC<UrlUploaderProps> = ({
 
         {/* Quick Sample Presets */}
         <div className="pt-2">
-          <div className="text-[10px] font-mono text-slate-400 mb-1.5 flex items-center space-x-1">
-            <Music className="w-3 h-3 text-neon-yellow" />
+          <div className="text-[10px] font-mono text-zinc-400 mb-1.5 flex items-center space-x-1">
+            <Music className="w-3 h-3 text-zinc-300" />
             <span>QUICK SAMPLE PRESETS:</span>
           </div>
           <div className="flex flex-wrap gap-1.5">
@@ -318,7 +318,7 @@ export const UrlUploader: React.FC<UrlUploaderProps> = ({
                 onClick={() => {
                   setUrl(preset.url);
                 }}
-                className="px-2.5 py-1 rounded bg-deck-dark hover:bg-deck-hover border border-deck-border text-[10px] font-mono text-slate-300 hover:text-neon-cyan transition-colors"
+                className="px-2.5 py-1 rounded bg-deck-dark hover:bg-zinc-800 border border-deck-border text-[10px] font-mono text-zinc-300 hover:text-white hover:border-zinc-500 transition-colors"
               >
                 {preset.name}
               </button>
@@ -331,27 +331,27 @@ export const UrlUploader: React.FC<UrlUploaderProps> = ({
           <div className="mt-3 bg-deck-dark/90 border border-deck-border rounded-xl p-3 space-y-2">
             <div className="flex items-center justify-between text-xs font-mono">
               <div className="flex items-center space-x-2">
-                <RefreshCw className="w-3.5 h-3.5 text-neon-cyan animate-spin" />
-                <span className="text-slate-200 font-bold uppercase">{status.stage}</span>
+                <RefreshCw className="w-3.5 h-3.5 text-white animate-spin" />
+                <span className="text-white font-bold uppercase">{status.stage}</span>
               </div>
-              <span className="text-neon-cyan font-bold">{Math.round(status.progress)}%</span>
+              <span className="text-white font-bold">{Math.round(status.progress)}%</span>
             </div>
 
-            <div className="w-full bg-slate-900 h-2 rounded-full overflow-hidden border border-deck-border">
+            <div className="w-full bg-zinc-900 h-2 rounded-full overflow-hidden border border-deck-border">
               <div
-                className="h-full bg-gradient-to-r from-neon-cyan via-neon-magenta to-neon-green transition-all duration-300"
+                className="h-full bg-gradient-to-r from-zinc-500 via-zinc-200 to-white transition-all duration-300 shadow-mono-glow"
                 style={{ width: `${Math.max(3, status.progress)}%` }}
               />
             </div>
 
-            <p className="text-[10px] text-slate-400 font-mono truncate">{status.message}</p>
+            <p className="text-[10px] text-zinc-400 font-mono truncate">{status.message}</p>
           </div>
         )}
 
         {/* Error Alert */}
         {status.stage === 'error' && !isProcessing && (
-          <div className="mt-2 bg-red-500/10 border border-red-500/50 rounded-lg p-2.5 flex items-center space-x-2 text-xs text-red-400 font-mono">
-            <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+          <div className="mt-2 bg-zinc-900 border border-white/40 rounded-lg p-2.5 flex items-center space-x-2 text-xs text-zinc-200 font-mono">
+            <AlertCircle className="w-4 h-4 text-white shrink-0" />
             <span className="truncate">{status.message}</span>
           </div>
         )}

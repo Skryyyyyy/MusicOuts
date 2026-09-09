@@ -169,15 +169,15 @@ export const GestureHUD: React.FC<GestureHUDProps> = ({
               ctx.scale(-1, 1);
             }
 
-            // Draw hand skeletons
+            // Draw hand skeletons (monochromatic high-contrast)
             latestLandmarksRef.current.forEach((handLandmarks, handIdx) => {
               if (!handLandmarks || handLandmarks.length < 21) return;
 
-              // Left hand cyan (#00f3ff), Right hand magenta (#ff007f)
+              // Left hand pure white (#ffffff), Right hand bright silver (#e4e4e7)
               const isLeftHand = handIdx === 0;
-              const mainColor = isLeftHand ? '#00f3ff' : '#ff007f';
-              const glowColor = isLeftHand ? 'rgba(0, 243, 255, 0.8)' : 'rgba(255, 0, 127, 0.8)';
-              const tipColor = isLeftHand ? '#ffffff' : '#ffe600';
+              const mainColor = isLeftHand ? '#ffffff' : '#e4e4e7';
+              const glowColor = isLeftHand ? 'rgba(255, 255, 255, 0.9)' : 'rgba(228, 228, 231, 0.7)';
+              const tipColor = '#ffffff';
 
               // Draw connections / bones
               ctx.lineWidth = 3;
@@ -204,8 +204,8 @@ export const GestureHUD: React.FC<GestureHUDProps> = ({
 
                 ctx.beginPath();
                 ctx.arc(pt.x * canvas.width, pt.y * canvas.height, radius, 0, 2 * Math.PI);
-                ctx.fillStyle = isTip ? tipColor : mainColor;
-                ctx.shadowColor = isTip ? tipColor : glowColor;
+                ctx.fillStyle = tipColor;
+                ctx.shadowColor = glowColor;
                 ctx.shadowBlur = isTip ? 16 : 8;
                 ctx.fill();
               }
@@ -229,17 +229,17 @@ export const GestureHUD: React.FC<GestureHUDProps> = ({
   return (
     <div className={`relative bg-deck-card border border-deck-border rounded-xl overflow-hidden shadow-2xl flex flex-col ${className}`}>
       {/* Header Bar */}
-      <div className="px-4 py-2.5 bg-deck-dark/80 backdrop-blur-md border-b border-deck-border flex items-center justify-between z-20">
+      <div className="px-4 py-2.5 bg-deck-dark/90 backdrop-blur-md border-b border-deck-border flex items-center justify-between z-20">
         <div className="flex items-center space-x-2">
-          <div className="w-2 h-2 rounded-full bg-neon-cyan animate-ping" />
-          <span className="text-xs font-bold tracking-wider text-slate-200 uppercase font-mono">
+          <div className="w-2 h-2 rounded-full bg-white animate-ping" />
+          <span className="text-xs font-bold tracking-wider text-white uppercase font-mono">
             Vision HUD / Skeleton Tracker
           </span>
         </div>
 
         {/* HUD Controls */}
         <div className="flex items-center space-x-2">
-          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-deck-card border border-deck-border text-neon-cyan">
+          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-deck-card border border-zinc-700 text-zinc-300">
             {fps} FPS
           </span>
 
@@ -248,8 +248,8 @@ export const GestureHUD: React.FC<GestureHUDProps> = ({
             title="Mirror Video Feed"
             className={`p-1.5 rounded-lg border text-xs transition-colors ${
               isMirrored
-                ? 'bg-neon-cyan/20 border-neon-cyan/50 text-neon-cyan'
-                : 'bg-deck-dark border-deck-border text-slate-400 hover:text-slate-200'
+                ? 'bg-white text-black border-white shadow-mono-glow'
+                : 'bg-deck-dark border-deck-border text-zinc-400 hover:text-white'
             }`}
           >
             <FlipHorizontal className="w-3.5 h-3.5" />
@@ -260,8 +260,8 @@ export const GestureHUD: React.FC<GestureHUDProps> = ({
             title="Toggle Skeleton Overlay"
             className={`p-1.5 rounded-lg border text-xs transition-colors ${
               showSkeleton
-                ? 'bg-neon-magenta/20 border-neon-magenta/50 text-neon-magenta'
-                : 'bg-deck-dark border-deck-border text-slate-400 hover:text-slate-200'
+                ? 'bg-white text-black border-white shadow-mono-glow'
+                : 'bg-deck-dark border-deck-border text-zinc-400 hover:text-white'
             }`}
           >
             {showSkeleton ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
@@ -271,8 +271,8 @@ export const GestureHUD: React.FC<GestureHUDProps> = ({
             onClick={() => onToggleEnabled(!isEnabled)}
             className={`px-3 py-1 rounded-lg border text-xs font-mono font-semibold flex items-center space-x-1.5 transition-all ${
               isEnabled
-                ? 'bg-red-500/20 border-red-500/60 text-red-400 hover:bg-red-500/30'
-                : 'bg-neon-cyan/20 border-neon-cyan/60 text-neon-cyan hover:bg-neon-cyan/30'
+                ? 'bg-zinc-800 border-zinc-600 text-zinc-200 hover:bg-zinc-700'
+                : 'bg-white text-black border-white hover:bg-zinc-200 shadow-mono-glow'
             }`}
           >
             {isEnabled ? (
@@ -292,8 +292,8 @@ export const GestureHUD: React.FC<GestureHUDProps> = ({
 
       {/* Video + Canvas Viewport */}
       <div className="relative flex-1 bg-black min-h-[360px] flex items-center justify-center overflow-hidden">
-        {/* Subtle Cyberpunk Grid */}
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,#1f293d10_1px,transparent_1px),linear-gradient(to_bottom,#1f293d10_1px,transparent_1px)] bg-[size:1.5rem_1.5rem] pointer-events-none" />
+        {/* Subtle Monochrome Grid */}
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff08_1px,transparent_1px),linear-gradient(to_bottom,#ffffff08_1px,transparent_1px)] bg-[size:1.5rem_1.5rem] pointer-events-none" />
 
         {/* Video Element */}
         <video
@@ -315,20 +315,20 @@ export const GestureHUD: React.FC<GestureHUDProps> = ({
         {/* Disabled / Empty State */}
         {!isEnabled && (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-6 bg-deck-dark/95 z-10">
-            <div className="w-16 h-16 rounded-2xl bg-deck-card border border-neon-cyan/30 flex items-center justify-center mb-4 shadow-neon-cyan/20 shadow-lg">
-              <Camera className="w-8 h-8 text-neon-cyan animate-pulse" />
+            <div className="w-16 h-16 rounded-2xl bg-deck-card border border-white/20 flex items-center justify-center mb-4 shadow-mono-subtle">
+              <Camera className="w-8 h-8 text-white animate-pulse" />
             </div>
-            <h3 className="text-base font-bold text-slate-100 mb-1 font-mono">
+            <h3 className="text-base font-bold text-white mb-1 font-mono">
               Webcam Gesture Tracking Inactive
             </h3>
-            <p className="text-xs text-slate-400 max-w-sm mb-4">
+            <p className="text-xs text-zinc-400 max-w-sm mb-4">
               Click &apos;Enable Camera&apos; to track hand heights, pinch gestures, and fist kill switches in real time.
             </p>
             <button
               onClick={() => onToggleEnabled(true)}
-              className="px-4 py-2 bg-gradient-to-r from-neon-cyan to-neon-magenta text-deck-dark font-bold text-xs rounded-lg shadow-neon-cyan/50 shadow-md hover:scale-105 transition-transform flex items-center space-x-2"
+              className="px-4 py-2 bg-white text-black font-bold text-xs rounded-lg shadow-mono-glow hover:bg-zinc-200 transition-all flex items-center space-x-2"
             >
-              <Sparkles className="w-4 h-4" />
+              <Sparkles className="w-4 h-4 text-black" />
               <span>Activate Spatial Vision</span>
             </button>
           </div>
@@ -337,20 +337,20 @@ export const GestureHUD: React.FC<GestureHUDProps> = ({
         {/* Camera Loading State */}
         {isEnabled && isLoadingCamera && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-deck-dark/80 z-15 backdrop-blur-sm">
-            <RefreshCw className="w-8 h-8 text-neon-cyan animate-spin mb-3" />
-            <span className="text-xs font-mono text-slate-300">Initializing MediaPipe Vision Model...</span>
+            <RefreshCw className="w-8 h-8 text-white animate-spin mb-3" />
+            <span className="text-xs font-mono text-zinc-300">Initializing MediaPipe Vision Model...</span>
           </div>
         )}
 
         {/* Camera Error State */}
         {isEnabled && cameraError && (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-6 bg-deck-dark/90 z-15">
-            <AlertCircle className="w-10 h-10 text-red-500 mb-2" />
-            <h4 className="text-sm font-bold text-red-400 mb-1 font-mono">Camera Stream Unavailable</h4>
-            <p className="text-xs text-slate-400 max-w-xs mb-3">{cameraError}</p>
+            <AlertCircle className="w-10 h-10 text-white mb-2" />
+            <h4 className="text-sm font-bold text-white mb-1 font-mono">Camera Stream Unavailable</h4>
+            <p className="text-xs text-zinc-400 max-w-xs mb-3">{cameraError}</p>
             <button
               onClick={startCamera}
-              className="px-3 py-1.5 bg-deck-card border border-deck-border text-xs rounded text-slate-200 hover:text-white"
+              className="px-3 py-1.5 bg-deck-card border border-deck-border text-xs rounded text-zinc-200 hover:text-white"
             >
               Retry Camera Connection
             </button>
@@ -361,56 +361,56 @@ export const GestureHUD: React.FC<GestureHUDProps> = ({
         {isEnabled && !cameraError && (
           <>
             {/* Left Hand Telemetry Badge */}
-            <div className="absolute top-3 left-3 bg-deck-dark/85 backdrop-blur-md border border-neon-cyan/40 rounded-lg px-3 py-2 text-xs font-mono shadow-neon-cyan/20 shadow-lg z-20 max-w-[210px]">
+            <div className="absolute top-3 left-3 bg-deck-dark/90 backdrop-blur-md border border-white/30 rounded-lg px-3 py-2 text-xs font-mono shadow-mono-subtle z-20 max-w-[210px]">
               <div className="flex items-center space-x-2 mb-1">
                 <span
                   className={`w-2 h-2 rounded-full ${
-                    gestureState.leftHand.present ? 'bg-neon-cyan animate-ping' : 'bg-slate-600'
+                    gestureState.leftHand.present ? 'bg-white animate-ping' : 'bg-zinc-600'
                   }`}
                 />
-                <span className="text-neon-cyan font-extrabold tracking-wider">LEFT HAND</span>
+                <span className="text-white font-extrabold tracking-wider">LEFT HAND</span>
               </div>
-              <div className="text-[11px] text-slate-300">
+              <div className="text-[11px] text-zinc-300">
                 VOCALS:{' '}
-                <span className="text-neon-cyan font-bold">
+                <span className="text-white font-bold">
                   {gestureState.leftHand.present
                     ? `${Math.round(gestureState.leftHand.height * 100)}%`
                     : 'OFF'}
                 </span>
               </div>
               {gestureState.leftHand.isPinching && (
-                <div className="mt-1 px-1.5 py-0.5 bg-neon-yellow/20 border border-neon-yellow/60 rounded text-[10px] text-neon-yellow font-bold animate-pulse">
+                <div className="mt-1 px-1.5 py-0.5 bg-white text-black border border-white rounded text-[10px] font-black animate-pulse">
                   SOLO ACTIVE (PINCH)
                 </div>
               )}
               {gestureState.leftHand.isFist && (
-                <div className="mt-1 px-1.5 py-0.5 bg-red-500/20 border border-red-500/60 rounded text-[10px] text-red-400 font-bold">
+                <div className="mt-1 px-1.5 py-0.5 bg-zinc-800 text-zinc-200 border border-zinc-600 rounded text-[10px] font-bold">
                   MUTED (FIST)
                 </div>
               )}
             </div>
 
             {/* Right Hand Telemetry Badge */}
-            <div className="absolute top-3 right-3 bg-deck-dark/85 backdrop-blur-md border border-neon-magenta/40 rounded-lg px-3 py-2 text-xs font-mono shadow-neon-magenta/20 shadow-lg z-20 max-w-[210px] text-right">
+            <div className="absolute top-3 right-3 bg-deck-dark/90 backdrop-blur-md border border-zinc-600 rounded-lg px-3 py-2 text-xs font-mono shadow-mono-subtle z-20 max-w-[210px] text-right">
               <div className="flex items-center justify-end space-x-2 mb-1">
-                <span className="text-neon-magenta font-extrabold tracking-wider">RIGHT HAND</span>
+                <span className="text-zinc-200 font-extrabold tracking-wider">RIGHT HAND</span>
                 <span
                   className={`w-2 h-2 rounded-full ${
-                    gestureState.rightHand.present ? 'bg-neon-magenta animate-ping' : 'bg-slate-600'
+                    gestureState.rightHand.present ? 'bg-zinc-300 animate-ping' : 'bg-zinc-600'
                   }`}
                 />
               </div>
-              <div className="text-[11px] text-slate-300">
+              <div className="text-[11px] text-zinc-300">
                 INSTRUMENTS:{' '}
-                <span className="text-neon-magenta font-bold">
+                <span className="text-white font-bold">
                   {gestureState.rightHand.present
                     ? `${Math.round(gestureState.rightHand.height * 100)}%`
                     : 'OFF'}
                 </span>
               </div>
-              <div className="text-[10px] text-slate-400 mt-0.5">
+              <div className="text-[10px] text-zinc-400 mt-0.5">
                 DJ FILTER:{' '}
-                <span className="text-neon-magenta font-bold">
+                <span className="text-white font-bold">
                   {(gestureState.djFilterCutoff / 1000).toFixed(1)} kHz [
                   {gestureState.djFilterType === 'lowpass' ? 'LP' : 'HP'}]
                 </span>
@@ -419,7 +419,7 @@ export const GestureHUD: React.FC<GestureHUDProps> = ({
 
             {/* Dual Fist Master Kill Switch Alert */}
             {gestureState.isDualFist && (
-              <div className="absolute bottom-4 inset-x-8 bg-red-600/90 backdrop-blur-md border border-red-400 rounded-xl py-2 px-4 text-center shadow-red-500/50 shadow-2xl z-30 animate-pulse">
+              <div className="absolute bottom-4 inset-x-8 bg-zinc-950/95 backdrop-blur-md border-2 border-white rounded-xl py-2.5 px-4 text-center shadow-mono-glow z-30 animate-pulse">
                 <span className="text-white font-mono font-extrabold text-xs tracking-widest uppercase">
                   ⚠️ KILL SWITCH ACTIVE (DUAL FIST) — ALL STEMS MUTED ⚠️
                 </span>

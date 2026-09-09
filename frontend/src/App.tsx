@@ -258,23 +258,23 @@ export const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-deck-dark text-slate-100 flex flex-col font-sans selection:bg-neon-cyan/30">
+    <div className="min-h-screen bg-deck-dark text-zinc-100 flex flex-col font-sans selection:bg-white/20">
       {/* Top Navigation Bar */}
-      <header className="h-16 border-b border-deck-border bg-deck-card/85 backdrop-blur-md px-6 flex items-center justify-between sticky top-0 z-50">
+      <header className="h-16 border-b border-deck-border bg-deck-card/90 backdrop-blur-md px-6 flex items-center justify-between sticky top-0 z-50">
         <div className="flex items-center space-x-3">
-          <div className="w-9 h-9 rounded-lg bg-gradient-to-tr from-neon-cyan via-slate-900 to-neon-magenta flex items-center justify-center shadow-neon-cyan/40 shadow-lg border border-neon-cyan/30">
-            <Radio className="w-5 h-5 text-neon-cyan stroke-[2.5]" />
+          <div className="w-9 h-9 rounded-lg bg-white flex items-center justify-center shadow-mono-glow border border-white">
+            <Radio className="w-5 h-5 text-black stroke-[2.5]" />
           </div>
           <div>
             <div className="flex items-center space-x-2">
-              <span className="font-extrabold text-lg tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-neon-cyan via-slate-100 to-neon-magenta font-mono">
+              <span className="font-extrabold text-lg tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-white via-zinc-200 to-zinc-400 font-mono">
                 WALKOUTS
               </span>
-              <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-neon-cyan/10 text-neon-cyan border border-neon-cyan/30">
-                v0.1.0-STUDIO
+              <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-white/10 text-zinc-200 border border-white/20">
+                v0.1.0-MONO
               </span>
             </div>
-            <p className="text-[11px] text-slate-400 font-mono tracking-tight">
+            <p className="text-[11px] text-zinc-400 font-mono tracking-tight">
               Real-Time Neural Stem Controller &amp; Gesture DJ
             </p>
           </div>
@@ -286,8 +286,8 @@ export const App: React.FC = () => {
             onClick={() => setActiveStageTab('dual')}
             className={`px-3 py-1.5 rounded-lg transition-all flex items-center space-x-1.5 ${
               activeStageTab === 'dual'
-                ? 'bg-deck-card text-neon-cyan border border-neon-cyan/40 shadow-sm font-bold'
-                : 'text-slate-400 hover:text-slate-200'
+                ? 'bg-white text-black font-bold shadow-mono-glow'
+                : 'text-zinc-400 hover:text-white'
             }`}
           >
             <Layers className="w-3.5 h-3.5" />
@@ -297,8 +297,8 @@ export const App: React.FC = () => {
             onClick={() => setActiveStageTab('visualizer')}
             className={`px-3 py-1.5 rounded-lg transition-all flex items-center space-x-1.5 ${
               activeStageTab === 'visualizer'
-                ? 'bg-deck-card text-neon-magenta border border-neon-magenta/40 shadow-sm font-bold'
-                : 'text-slate-400 hover:text-slate-200'
+                ? 'bg-white text-black font-bold shadow-mono-glow'
+                : 'text-zinc-400 hover:text-white'
             }`}
           >
             <Activity className="w-3.5 h-3.5" />
@@ -308,8 +308,8 @@ export const App: React.FC = () => {
             onClick={() => setActiveStageTab('hud')}
             className={`px-3 py-1.5 rounded-lg transition-all flex items-center space-x-1.5 ${
               activeStageTab === 'hud'
-                ? 'bg-deck-card text-neon-green border border-neon-green/40 shadow-sm font-bold'
-                : 'text-slate-400 hover:text-slate-200'
+                ? 'bg-white text-black font-bold shadow-mono-glow'
+                : 'text-zinc-400 hover:text-white'
             }`}
           >
             <Eye className="w-3.5 h-3.5" />
@@ -405,15 +405,15 @@ export const App: React.FC = () => {
       </div>
 
       {/* Global Status Footer */}
-      <footer className="h-8 border-t border-deck-border bg-deck-card/90 px-6 flex items-center justify-between text-[11px] font-mono text-slate-400">
+      <footer className="h-8 border-t border-deck-border bg-deck-card/90 px-6 flex items-center justify-between text-[11px] font-mono text-zinc-400">
         <div className="flex items-center space-x-4">
           <div className="flex items-center space-x-1.5">
             <span
               className={`w-2 h-2 rounded-full inline-block ${
-                processStatus.stage === 'error' ? 'bg-red-500' : 'bg-neon-green'
+                processStatus.stage === 'error' ? 'bg-red-500' : 'bg-white shadow-[0_0_6px_rgba(255,255,255,0.8)]'
               }`}
             />
-            <span className="text-slate-300">Demucs Engine: {processStatus.message}</span>
+            <span className="text-zinc-300">Demucs Engine: {processStatus.message}</span>
           </div>
           <span className="text-deck-border">|</span>
           <span>Web Audio Graph: 4-Channel Active</span>
@@ -421,7 +421,7 @@ export const App: React.FC = () => {
         <div className="flex items-center space-x-4">
           <span>Dual Fist Kill Switch: {gestureState.isDualFist ? 'ACTIVE' : 'READY'}</span>
           <span className="text-deck-border">|</span>
-          <span className="text-neon-cyan">WalkOuts Studio Deck</span>
+          <span className="text-white font-medium">WalkOuts Studio Deck</span>
         </div>
       </footer>
     </div>
