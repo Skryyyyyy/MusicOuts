@@ -16,6 +16,11 @@ from .separator import (
     unload_demucs_model,
     separate_audio_stems,
 )
+from .task_manager import (
+    TaskManager,
+    TaskState,
+    task_manager,
+)
 
 __all__ = [
     "extract_youtube_info",
@@ -30,4 +35,7 @@ __all__ = [
     "get_demucs_model",
     "unload_demucs_model",
     "separate_audio_stems",
+    "TaskManager",
+    "TaskState",
+    "task_manager",
 ]

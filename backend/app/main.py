@@ -1,5 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
+from backend.app.api import media_router, process_router
 from backend.app.config import CORS_ORIGINS, DEVICE, get_device_info
 
 app = FastAPI(
@@ -16,6 +18,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include API Routers
+app.include_router(process_router, prefix="/api")
+app.include_router(media_router, prefix="/api")
 
 
 @app.get("/")
