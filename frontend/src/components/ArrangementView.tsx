@@ -5,8 +5,9 @@ import {
   Disc,
   Radio,
   Sliders,
+  Activity,
 } from 'lucide-react';
-import { StemType, STEM_TYPES, StemState, TrackMetadata, GestureState } from '../types';
+import { StemType, STEM_TYPES, StemState, TrackMetadata, GestureState, AutomationPoint } from '../types';
 import { AudioGraphEngine } from '../engine/audioGraph';
 
 export interface ArrangementViewProps {
@@ -18,6 +19,9 @@ export interface ArrangementViewProps {
   isLooping: boolean;
   stemStates: Record<StemType, StemState>;
   gestureState?: GestureState;
+  automationPoints?: AutomationPoint[];
+  showAutomation?: boolean;
+  onToggleAutomation?: () => void;
   onSeek: (seconds: number) => void;
   onStemVolumeChange: (stem: StemType, val: number) => void;
   onStemMuteToggle: (stem: StemType) => void;
@@ -89,6 +93,9 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
   isLooping,
   stemStates,
   gestureState,
+  automationPoints = [],
+  showAutomation = true,
+  onToggleAutomation,
   onSeek,
   onStemVolumeChange,
   onStemMuteToggle,
@@ -236,9 +243,45 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
         ctx.fillRect(x, y, Math.max(1.2, barWidth - 1), barHeight);
       }
 
+      // Render Automation Curve Overlay
+      if (showAutomation && automationPoints && automationPoints.length > 0) {
+        const target = `${stem}.volume`;
+        const stemAutoPoints = automationPoints
+          .filter((p) => p.target === target)
+          .sort((a, b) => a.time - b.time);
+
+        if (stemAutoPoints.length > 0) {
+          ctx.beginPath();
+          ctx.strokeStyle = '#ec4899';
+          ctx.lineWidth = 2.5;
+          ctx.shadowColor = '#ec4899';
+          ctx.shadowBlur = 8;
+
+          for (let i = 0; i < stemAutoPoints.length; i++) {
+            const pt = stemAutoPoints[i];
+            const autoX = (pt.time / (duration || 180)) * width;
+            const autoY = height - (Math.min(1.5, Math.max(0, pt.value)) / 1.5) * (height * 0.85) - height * 0.08;
+            if (i === 0) ctx.moveTo(autoX, autoY);
+            else ctx.lineTo(autoX, autoY);
+          }
+          ctx.stroke();
+
+          // Draw node points
+          for (const pt of stemAutoPoints) {
+            const autoX = (pt.time / (duration || 180)) * width;
+            const autoY = height - (Math.min(1.5, Math.max(0, pt.value)) / 1.5) * (height * 0.85) - height * 0.08;
+            ctx.beginPath();
+            ctx.arc(autoX, autoY, 3, 0, 2 * Math.PI);
+            ctx.fillStyle = '#ffffff';
+            ctx.shadowBlur = 4;
+            ctx.fill();
+          }
+        }
+      }
+
       ctx.restore();
     }
-  }, [audioGraph, progressPercent, duration]);
+  }, [audioGraph, progressPercent, duration, showAutomation, automationPoints]);
 
   // Format ruler seconds to standard DAW time mark (e.g. 0:00, 0:30, 1:00)
   const formatRulerTime = (secs: number): string => {
@@ -261,9 +304,25 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
             <Sliders className="w-3.5 h-3.5 text-zinc-400" />
             <span>Stem Tracks (4-Ch)</span>
           </div>
-          <span className="text-[9px] px-1.5 py-0.2 rounded bg-white/5 text-zinc-400 border border-zinc-700">
-            AUDIO
-          </span>
+          <div className="flex items-center space-x-1.5">
+            {onToggleAutomation && (
+              <button
+                onClick={onToggleAutomation}
+                className={`flex items-center space-x-1 px-1.5 py-0.5 rounded text-[9px] border font-bold transition-all ${
+                  showAutomation
+                    ? 'bg-pink-500/20 text-pink-300 border-pink-500/50 shadow-sm'
+                    : 'bg-[#121316] text-zinc-500 border-zinc-700 hover:text-zinc-300'
+                }`}
+                title="Toggle Automation Curves Overlay"
+              >
+                <Activity className="w-2.5 h-2.5" />
+                <span>AUTO</span>
+              </button>
+            )}
+            <span className="text-[9px] px-1.5 py-0.2 rounded bg-white/5 text-zinc-400 border border-zinc-700">
+              AUDIO
+            </span>
+          </div>
         </div>
 
         {/* Timeline Ruler Area (Bars / Timecode Ticks + Section Markers) */}

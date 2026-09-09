@@ -1,12 +1,14 @@
 /**
- * Core type definitions for MusicOuts Gesture Music Stem Mixer
+ * Core type definitions for MusicOuts Gesture Music Stem Mixer & DAW Studio
  */
 
 export type StemType = 'vocals' | 'drums' | 'bass' | 'other';
 
 export const STEM_TYPES: StemType[] = ['vocals', 'drums', 'bass', 'other'];
 
-export type StudioView = 'arrangement' | 'mixer' | 'gesture' | 'visualizer' | 'ingestion';
+export type StudioView = 'arrangement' | 'mixer' | 'fxrack' | 'gesture' | 'visualizer' | 'ingestion';
+
+export type StudioMode = 'performance' | 'producer';
 
 export interface StemState {
   volume: number; // 0.0 to 1.0 (or higher if boosted)
@@ -84,6 +86,161 @@ export interface TimelineMarker {
   color: string;
 }
 
+// ---------------- FX RACK TYPES ----------------
+
+export interface StemEqConfig {
+  enabled: boolean;
+  lowGain: number; // -12dB to +12dB
+  midGain: number; // -12dB to +12dB
+  highGain: number; // -12dB to +12dB
+  lowFreq: number; // e.g. 100Hz
+  midFreq: number; // e.g. 1000Hz
+  highFreq: number; // e.g. 8000Hz
+}
+
+export interface StemCompConfig {
+  enabled: boolean;
+  threshold: number; // -40dB to 0dB
+  ratio: number; // 1 to 20
+  attack: number; // 0.005 to 0.1s
+  release: number; // 0.05 to 0.5s
+  knee: number; // 0 to 40dB
+}
+
+export interface StemReverbConfig {
+  enabled: boolean;
+  decay: number; // 0.5s to 5.0s
+  preDelay: number; // 0.0 to 0.1s
+  mix: number; // 0.0 (dry) to 1.0 (wet)
+}
+
+export interface StemDelayConfig {
+  enabled: boolean;
+  time: number; // 0.05s to 1.0s (or tempo-synced subdivisions)
+  feedback: number; // 0.0 to 0.85
+  mix: number; // 0.0 to 1.0
+}
+
+export interface StemSaturationConfig {
+  enabled: boolean;
+  drive: number; // 0.0 to 1.0
+  tone: number; // 0.0 (dark/warm) to 1.0 (bright)
+  mix: number; // 0.0 to 1.0
+}
+
+export interface StemFxState {
+  eq: StemEqConfig;
+  compressor: StemCompConfig;
+  reverb: StemReverbConfig;
+  delay: StemDelayConfig;
+  saturation: StemSaturationConfig;
+}
+
+export type FxRackState = Record<StemType, StemFxState>;
+
+export const DEFAULT_STEM_FX: StemFxState = {
+  eq: {
+    enabled: true,
+    lowGain: 0,
+    midGain: 0,
+    highGain: 0,
+    lowFreq: 100,
+    midFreq: 1000,
+    highFreq: 8000,
+  },
+  compressor: {
+    enabled: false,
+    threshold: -18,
+    ratio: 4,
+    attack: 0.01,
+    release: 0.15,
+    knee: 10,
+  },
+  reverb: {
+    enabled: false,
+    decay: 1.8,
+    preDelay: 0.02,
+    mix: 0.25,
+  },
+  delay: {
+    enabled: false,
+    time: 0.25, // 1/4 note or 250ms
+    feedback: 0.35,
+    mix: 0.2,
+  },
+  saturation: {
+    enabled: false,
+    drive: 0.3,
+    tone: 0.5,
+    mix: 0.3,
+  },
+};
+
+export const DEFAULT_FX_RACK_STATE: FxRackState = {
+  vocals: {
+    ...DEFAULT_STEM_FX,
+    reverb: { enabled: true, decay: 2.2, preDelay: 0.03, mix: 0.2 },
+    compressor: { enabled: true, threshold: -16, ratio: 3.5, attack: 0.015, release: 0.2, knee: 12 },
+  },
+  drums: {
+    ...DEFAULT_STEM_FX,
+    compressor: { enabled: true, threshold: -12, ratio: 6, attack: 0.005, release: 0.1, knee: 6 },
+    saturation: { enabled: true, drive: 0.4, tone: 0.6, mix: 0.35 },
+  },
+  bass: {
+    ...DEFAULT_STEM_FX,
+    saturation: { enabled: true, drive: 0.45, tone: 0.3, mix: 0.4 },
+    compressor: { enabled: true, threshold: -14, ratio: 5, attack: 0.02, release: 0.2, knee: 8 },
+  },
+  other: {
+    ...DEFAULT_STEM_FX,
+    delay: { enabled: true, time: 0.35, feedback: 0.3, mix: 0.2 },
+    reverb: { enabled: true, decay: 2.5, preDelay: 0.02, mix: 0.25 },
+  },
+};
+
+// ---------------- AUTOMATION TYPES ----------------
+
+export interface AutomationPoint {
+  id: string;
+  time: number; // in seconds
+  target: string; // e.g. 'vocals.volume', 'master.djFilterCutoff', 'drums.pan'
+  value: number; // 0.0 to 1.0 or actual Hz
+}
+
+export interface AutomationLane {
+  target: string;
+  name: string;
+  color: string;
+  min: number;
+  max: number;
+  points: AutomationPoint[];
+  isArmed: boolean;
+  isEnabled: boolean;
+}
+
+// ---------------- PERFORMANCE CAPTURE TYPES ----------------
+
+export interface PerformanceCaptureEvent {
+  time: number; // timeline time in seconds
+  type: 'gesture' | 'fader' | 'filter' | 'scene' | 'fx';
+  data: Record<string, unknown>;
+}
+
+export interface PerformanceSession {
+  id: string;
+  title: string;
+  timestamp: string;
+  duration: number;
+  totalGestures: number;
+  totalAutomationPoints: number;
+  scenesTriggered: string[];
+  events: PerformanceCaptureEvent[];
+  projectSnapshot: MusicOutsProject;
+}
+
+// ---------------- FULL PROJECT FILE FORMAT ----------------
+
 export interface MusicOutsProject {
   version: string;
   title: string;
@@ -91,11 +248,23 @@ export interface MusicOutsProject {
   duration: number;
   bpm: number;
   key: string;
+  timeSignature: string;
+  mode: StudioMode;
   stemStates: Record<StemType, StemState>;
+  fxRack: FxRackState;
   masterVolume: number;
   djFilterCutoff: number;
   djFilterType: 'lowpass' | 'highpass';
   isDucking: boolean;
   markers: TimelineMarker[];
+  automation: AutomationPoint[];
+  scenes?: Array<{
+    id: string;
+    name: string;
+    description: string;
+    stems: Record<StemType, StemState>;
+    filterCutoff: number;
+    filterType: 'lowpass' | 'highpass';
+  }>;
   created: string;
 }

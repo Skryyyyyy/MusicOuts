@@ -224,7 +224,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
           }
         } else if (mode === 'oscilloscope') {
           // MODE 3: Time-Domain Waveform Oscilloscope (with idle breathing animation)
-          const waveData = audioGraph?.getWaveformData() || new Uint8Array(256).fill(128);
+          const waveData = audioGraph?.getTimeDomainData() || new Uint8Array(256).fill(128);
           const sliceWidth = width / waveData.length;
           const time = performance.now() * 0.003;
 

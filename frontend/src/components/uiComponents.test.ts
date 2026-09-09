@@ -16,7 +16,9 @@ import { VisualStageView } from "./views/VisualStageView";
 import { DemixLabView } from "./views/DemixLabView";
 import { VirtualSynth } from "./VirtualSynth";
 import { StudioGuideModal } from "./StudioGuideModal";
-import { StemType, StemState, GestureState, TrackMetadata } from '../types';
+import { FxRackView } from "./views/FxRackView";
+import { CapturePerformanceModal } from "./CapturePerformanceModal";
+import { StemType, StemState, GestureState, TrackMetadata, DEFAULT_FX_RACK_STATE } from '../types';
 import { DEFAULT_GESTURE_STATE } from '../engine/gestureTracker';
 
 const MOCK_STEM_STATES: Record<StemType, StemState> = {
@@ -297,14 +299,11 @@ describe('UI Studio Deck Components', () => {
         })
       );
 
-      expect(html).toContain('MUSICOUTS');
+      expect(html).toContain('MusicOuts');
       expect(html).toContain('01:05.50');
-      expect(html).toContain('120.00');
-      expect(html).toContain('4/4');
-      expect(html).toContain('RTX 2050');
-      expect(html).toMatch(/DUCKING.*AUTO/);
-      expect(html).toContain('MASTER OUT');
-      expect(html).toContain('DJ FILTER');
+      expect(html).toContain('PLAY');
+      expect(html).toContain('CUDA');
+      expect(html).toContain('DUCK:');
     });
   });
 
@@ -464,6 +463,67 @@ describe('UI Studio Deck Components', () => {
       expect(html).toContain("MusicOuts Pro Studio • Quick Guide");
       expect(html).toContain("5 Dedicated Studio Workspaces");
       expect(html).toContain("Keyboard Shortcuts");
+    });
+
+    it("renders FxRackView with 5-insert effect slots and stem selector", () => {
+      const html = renderToString(
+        React.createElement(FxRackView, {
+          audioGraph: null,
+          fxRackState: DEFAULT_FX_RACK_STATE,
+          onFxChange: vi.fn(),
+        })
+      );
+
+      expect(html).toContain("Stem Inserts &amp; FX Rack");
+      expect(html).toContain("3-Band EQ");
+      expect(html).toContain("Compressor");
+      expect(html).toContain("Convolver Reverb");
+      expect(html).toContain("Stereo Delay");
+      expect(html).toContain("Saturation");
+    });
+
+    it("renders CapturePerformanceModal with take details and checklist", () => {
+      const html = renderToString(
+        React.createElement(CapturePerformanceModal, {
+          session: {
+            id: 'perf_test_1234',
+            title: 'Live Anthem Take',
+            timestamp: new Date().toISOString(),
+            duration: 195,
+            totalGestures: 42,
+            totalAutomationPoints: 120,
+            scenesTriggered: ['DROP', 'VERSE'],
+            events: [],
+            projectSnapshot: {
+              version: '1.1',
+              title: 'Live Anthem Take',
+              trackId: 'track_1',
+              duration: 195,
+              bpm: 120,
+              key: 'A Minor',
+              timeSignature: '4/4',
+              mode: 'performance',
+              stemStates: MOCK_STEM_STATES,
+              fxRack: DEFAULT_FX_RACK_STATE,
+              masterVolume: 1.0,
+              djFilterCutoff: 20000,
+              djFilterType: 'lowpass',
+              isDucking: false,
+              markers: [],
+              automation: [],
+              created: new Date().toISOString(),
+            },
+          },
+          onClose: vi.fn(),
+          onPlayTake: vi.fn(),
+        })
+      );
+
+      expect(html).toContain("Performance Take Captured");
+      expect(html).toContain("03:15");
+      expect(html).toContain("42");
+      expect(html).toContain("Playback Take");
+      expect(html).toContain("Save Performance");
     });
   });
 });

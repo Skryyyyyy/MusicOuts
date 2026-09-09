@@ -1,18 +1,104 @@
-import { STEM_TYPES, StemState, StemType } from '../types';
+import {
+  STEM_TYPES,
+  StemState,
+  StemType,
+  StemFxState,
+  StemEqConfig,
+  StemCompConfig,
+  StemReverbConfig,
+  StemDelayConfig,
+  StemSaturationConfig,
+  DEFAULT_FX_RACK_STATE,
+  FxRackState,
+} from '../types';
 
 export const DEFAULT_RAMP_DURATION = 0.03; // 30ms click-free ramp
 export const MIN_FILTER_FREQ = 20;
 export const MAX_FILTER_FREQ = 20000;
 export const DEFAULT_FFT_SIZE = 1024;
 
+/**
+ * Generate a sigmoid waveshaper distortion curve
+ */
+export function makeDistortionCurve(drive: number = 0.5, n_samples: number = 44100): Float32Array {
+  const k = Math.max(0, Math.min(1.0, drive)) * 50;
+  const curve = new Float32Array(n_samples);
+  const deg = Math.PI / 180;
+  for (let i = 0; i < n_samples; ++i) {
+    const x = (i * 2) / n_samples - 1;
+    if (k === 0) {
+      curve[i] = x;
+    } else {
+      curve[i] = ((3 + k) * x * 20 * deg) / (Math.PI + k * Math.abs(x));
+    }
+  }
+  return curve;
+}
+
+/**
+ * Synthesizes an algorithmic stereo impulse response buffer for convolution reverb
+ */
+export function buildImpulseResponse(
+  audioCtx: AudioContext,
+  duration: number = 2.0,
+  decay: number = 2.0
+): AudioBuffer {
+  const sampleRate = audioCtx.sampleRate || 44100;
+  const length = Math.max(1, Math.floor(sampleRate * Math.max(0.2, duration)));
+  const impulse = audioCtx.createBuffer(2, length, sampleRate);
+  const left = impulse.getChannelData(0);
+  const right = impulse.getChannelData(1);
+
+  for (let i = 0; i < length; i++) {
+    const n = i / length;
+    const env = Math.pow(1 - n, decay * 1.5);
+    left[i] = (Math.random() * 2 - 1) * env;
+    right[i] = (Math.random() * 2 - 1) * env;
+  }
+  return impulse;
+}
+
 export interface StemChannel {
   type: StemType;
   buffer: AudioBuffer | null;
   sourceNode: AudioBufferSourceNode | null;
+  
+  // FX Insert DSP Nodes
+  inputNode: GainNode;
+  eqLowNode: BiquadFilterNode;
+  eqMidNode: BiquadFilterNode;
+  eqHighNode: BiquadFilterNode;
+  
+  // Saturation
+  saturationNode: WaveShaperNode;
+  saturationDryGain: GainNode;
+  saturationWetGain: GainNode;
+  saturationOutGain: GainNode;
+
+  // Compressor
+  compressorNode: DynamicsCompressorNode;
+  compressorDryGain: GainNode;
+  compressorWetGain: GainNode;
+  compressorOutGain: GainNode;
+
+  // Delay
+  delayNode: DelayNode;
+  delayFeedbackGain: GainNode;
+  delayDryGain: GainNode;
+  delayWetGain: GainNode;
+  delayOutGain: GainNode;
+
+  // Reverb
+  reverbNode: ConvolverNode;
+  reverbDryGain: GainNode;
+  reverbWetGain: GainNode;
+  reverbOutGain: GainNode;
+
   pannerNode: StereoPannerNode | null;
   gainNode: GainNode;
   analyserNode: AnalyserNode;
   state: StemState;
+  fxState: StemFxState;
 }
 
 export interface DjFilterState {
@@ -98,10 +184,88 @@ export class AudioGraphEngine {
     this.masterGainNode.connect(this.masterAnalyserNode);
     this.masterAnalyserNode.connect(this.audioContext.destination);
 
-    // 2. Initialize Channels for 4 stems
+    // 2. Initialize Channels & FX Racks for 4 stems
     this.channels = {} as Record<StemType, StemChannel>;
 
     for (const stem of STEM_TYPES) {
+      const initialFx = JSON.parse(JSON.stringify(DEFAULT_FX_RACK_STATE[stem])) as StemFxState;
+
+      // Channel input routing
+      const inputNode = this.audioContext.createGain();
+
+      // 3-Band EQ Nodes
+      const eqLowNode = this.audioContext.createBiquadFilter();
+      eqLowNode.type = 'lowshelf';
+      eqLowNode.frequency.setValueAtTime(initialFx.eq.lowFreq, this.audioContext.currentTime);
+      eqLowNode.gain.setValueAtTime(initialFx.eq.enabled ? initialFx.eq.lowGain : 0, this.audioContext.currentTime);
+
+      const eqMidNode = this.audioContext.createBiquadFilter();
+      eqMidNode.type = 'peaking';
+      eqMidNode.frequency.setValueAtTime(initialFx.eq.midFreq, this.audioContext.currentTime);
+      eqMidNode.Q.setValueAtTime(1.0, this.audioContext.currentTime);
+      eqMidNode.gain.setValueAtTime(initialFx.eq.enabled ? initialFx.eq.midGain : 0, this.audioContext.currentTime);
+
+      const eqHighNode = this.audioContext.createBiquadFilter();
+      eqHighNode.type = 'highshelf';
+      eqHighNode.frequency.setValueAtTime(initialFx.eq.highFreq, this.audioContext.currentTime);
+      eqHighNode.gain.setValueAtTime(initialFx.eq.enabled ? initialFx.eq.highGain : 0, this.audioContext.currentTime);
+
+      // Saturation Stage
+      const saturationNode = this.audioContext.createWaveShaper();
+      saturationNode.curve = makeDistortionCurve(initialFx.saturation.drive) as unknown as Float32Array<ArrayBuffer>;
+      saturationNode.oversample = '2x';
+
+      const saturationDryGain = this.audioContext.createGain();
+      const saturationWetGain = this.audioContext.createGain();
+      const saturationOutGain = this.audioContext.createGain();
+
+      const satMix = initialFx.saturation.enabled ? initialFx.saturation.mix : 0;
+      saturationDryGain.gain.setValueAtTime(1 - satMix, this.audioContext.currentTime);
+      saturationWetGain.gain.setValueAtTime(satMix, this.audioContext.currentTime);
+
+      // Compressor Stage
+      const compressorNode = this.audioContext.createDynamicsCompressor();
+      compressorNode.threshold.setValueAtTime(initialFx.compressor.threshold, this.audioContext.currentTime);
+      compressorNode.ratio.setValueAtTime(initialFx.compressor.ratio, this.audioContext.currentTime);
+      compressorNode.attack.setValueAtTime(initialFx.compressor.attack, this.audioContext.currentTime);
+      compressorNode.release.setValueAtTime(initialFx.compressor.release, this.audioContext.currentTime);
+      compressorNode.knee.setValueAtTime(initialFx.compressor.knee, this.audioContext.currentTime);
+
+      const compressorDryGain = this.audioContext.createGain();
+      const compressorWetGain = this.audioContext.createGain();
+      const compressorOutGain = this.audioContext.createGain();
+
+      compressorDryGain.gain.setValueAtTime(initialFx.compressor.enabled ? 0 : 1, this.audioContext.currentTime);
+      compressorWetGain.gain.setValueAtTime(initialFx.compressor.enabled ? 1 : 0, this.audioContext.currentTime);
+
+      // Delay Stage
+      const delayNode = this.audioContext.createDelay(2.0);
+      delayNode.delayTime.setValueAtTime(initialFx.delay.time, this.audioContext.currentTime);
+
+      const delayFeedbackGain = this.audioContext.createGain();
+      delayFeedbackGain.gain.setValueAtTime(initialFx.delay.feedback, this.audioContext.currentTime);
+
+      const delayDryGain = this.audioContext.createGain();
+      const delayWetGain = this.audioContext.createGain();
+      const delayOutGain = this.audioContext.createGain();
+
+      const delayMix = initialFx.delay.enabled ? initialFx.delay.mix : 0;
+      delayDryGain.gain.setValueAtTime(1.0, this.audioContext.currentTime);
+      delayWetGain.gain.setValueAtTime(delayMix, this.audioContext.currentTime);
+
+      // Reverb Stage
+      const reverbNode = this.audioContext.createConvolver();
+      reverbNode.buffer = buildImpulseResponse(this.audioContext, initialFx.reverb.decay);
+
+      const reverbDryGain = this.audioContext.createGain();
+      const reverbWetGain = this.audioContext.createGain();
+      const reverbOutGain = this.audioContext.createGain();
+
+      const revMix = initialFx.reverb.enabled ? initialFx.reverb.mix : 0;
+      reverbDryGain.gain.setValueAtTime(1.0 - revMix * 0.4, this.audioContext.currentTime);
+      reverbWetGain.gain.setValueAtTime(revMix, this.audioContext.currentTime);
+
+      // Channel Gain & Pan
       const gainNode = this.audioContext.createGain();
       gainNode.gain.setValueAtTime(1.0, this.audioContext.currentTime);
 
@@ -117,9 +281,48 @@ export class AudioGraphEngine {
       analyserNode.minDecibels = -90;
       analyserNode.maxDecibels = -10;
 
-      // Connect: (Panner ->) Gain -> Analyser -> Master Filter
+      // Connect DSP chain:
+      // inputNode -> eqLow -> eqMid -> eqHigh
+      inputNode.connect(eqLowNode);
+      eqLowNode.connect(eqMidNode);
+      eqMidNode.connect(eqHighNode);
+
+      // eqHigh -> Saturation (dry & wet) -> saturationOut
+      eqHighNode.connect(saturationDryGain);
+      saturationDryGain.connect(saturationOutGain);
+      eqHighNode.connect(saturationNode);
+      saturationNode.connect(saturationWetGain);
+      saturationWetGain.connect(saturationOutGain);
+
+      // saturationOut -> Compressor (dry & wet) -> compressorOut
+      saturationOutGain.connect(compressorDryGain);
+      compressorDryGain.connect(compressorOutGain);
+      saturationOutGain.connect(compressorNode);
+      compressorNode.connect(compressorWetGain);
+      compressorWetGain.connect(compressorOutGain);
+
+      // compressorOut -> Delay (dry & wet) -> delayOut
+      compressorOutGain.connect(delayDryGain);
+      delayDryGain.connect(delayOutGain);
+      compressorOutGain.connect(delayNode);
+      delayNode.connect(delayFeedbackGain);
+      delayFeedbackGain.connect(delayNode); // feedback loop
+      delayNode.connect(delayWetGain);
+      delayWetGain.connect(delayOutGain);
+
+      // delayOut -> Reverb (dry & wet) -> reverbOut
+      delayOutGain.connect(reverbDryGain);
+      reverbDryGain.connect(reverbOutGain);
+      delayOutGain.connect(reverbNode);
+      reverbNode.connect(reverbWetGain);
+      reverbWetGain.connect(reverbOutGain);
+
+      // reverbOut -> Panner -> Gain -> Analyser -> Master Filter
       if (pannerNode) {
+        reverbOutGain.connect(pannerNode);
         pannerNode.connect(gainNode);
+      } else {
+        reverbOutGain.connect(gainNode);
       }
       gainNode.connect(analyserNode);
       analyserNode.connect(this.masterFilterNode);
@@ -128,6 +331,27 @@ export class AudioGraphEngine {
         type: stem,
         buffer: null,
         sourceNode: null,
+        inputNode,
+        eqLowNode,
+        eqMidNode,
+        eqHighNode,
+        saturationNode,
+        saturationDryGain,
+        saturationWetGain,
+        saturationOutGain,
+        compressorNode,
+        compressorDryGain,
+        compressorWetGain,
+        compressorOutGain,
+        delayNode,
+        delayFeedbackGain,
+        delayDryGain,
+        delayWetGain,
+        delayOutGain,
+        reverbNode,
+        reverbDryGain,
+        reverbWetGain,
+        reverbOutGain,
         pannerNode,
         gainNode,
         analyserNode,
@@ -137,13 +361,13 @@ export class AudioGraphEngine {
           solo: false,
           pan: 0.0,
         },
+        fxState: initialFx,
       };
     }
   }
 
   /**
    * Loads stem audio files from provided URLs or track ID mappings.
-   * Concurrently fetches and decodes all 4 stems into memory.
    */
   public async loadStems(
     trackIdOrStems: string | Record<StemType, string>,
@@ -211,32 +435,29 @@ export class AudioGraphEngine {
    */
   private decodeAudio(arrayBuffer: ArrayBuffer): Promise<AudioBuffer> {
     return new Promise((resolve, reject) => {
-      // In case decodeAudioData detaches the buffer, we slice a copy
       const bufferCopy = arrayBuffer.slice(0);
       const res = this.audioContext.decodeAudioData(
         bufferCopy,
         (decoded) => resolve(decoded),
         (err) => reject(err)
       );
-      if (res && typeof res.then === 'function') {
-        res.then(resolve).catch(reject);
+      if (res && typeof (res as unknown as Promise<AudioBuffer>).then === 'function') {
+        (res as unknown as Promise<AudioBuffer>).then(resolve).catch(reject);
       }
     });
   }
 
   /**
-   * Starts synchronous playback across all 4 stems from given or current offset.
+   * Starts synchronized playback of all loaded stems.
    */
   public async play(offsetSeconds?: number): Promise<void> {
     if (this.audioContext.state === 'suspended') {
       await this.audioContext.resume();
     }
 
-    // Stop active sources before creating new synchronized sources
     this.stopActiveSources();
 
-    const targetOffset =
-      offsetSeconds !== undefined ? offsetSeconds : this.pausedOffset;
+    const targetOffset = offsetSeconds !== undefined ? offsetSeconds : this.pausedOffset;
     const clampedOffset = Math.max(0, Math.min(targetOffset, this.duration));
 
     const now = this.audioContext.currentTime;
@@ -253,12 +474,8 @@ export class AudioGraphEngine {
       source.buffer = channel.buffer;
       source.loop = this.isLooping;
 
-      // Connect source to channel DSP chain
-      if (channel.pannerNode) {
-        source.connect(channel.pannerNode);
-      } else {
-        source.connect(channel.gainNode);
-      }
+      // Connect source to channel FX input
+      source.connect(channel.inputNode);
 
       source.onended = () => {
         if (channel.sourceNode === source) {
@@ -272,7 +489,6 @@ export class AudioGraphEngine {
         }
       };
 
-      // Start source synchronously at audioContext currentTime
       source.start(now, clampedOffset);
       channel.sourceNode = source;
     }
@@ -291,7 +507,6 @@ export class AudioGraphEngine {
 
   /**
    * Seeks to a specific timestamp in seconds.
-   * If currently playing, seamlessly restarts sources from the new offset.
    */
   public seek(seconds: number): void {
     const target = Math.max(0, Math.min(seconds, this.duration));
@@ -303,9 +518,6 @@ export class AudioGraphEngine {
     }
   }
 
-  /**
-   * Stop and disconnect active source nodes.
-   */
   private stopActiveSources(): void {
     for (const stem of STEM_TYPES) {
       const channel = this.channels[stem];
@@ -314,7 +526,7 @@ export class AudioGraphEngine {
           channel.sourceNode.stop();
           channel.sourceNode.disconnect();
         } catch {
-          // Source may have already completed
+          // Ignore
         }
         channel.sourceNode = null;
       }
@@ -336,9 +548,6 @@ export class AudioGraphEngine {
     this.applyStemGains(rampDuration);
   }
 
-  /**
-   * Mutes or unmutes a stem while preserving configured volume level.
-   */
   public setStemMute(
     stem: StemType,
     muted: boolean,
@@ -351,10 +560,6 @@ export class AudioGraphEngine {
     this.applyStemGains(rampDuration);
   }
 
-  /**
-   * Solos or unsolos a stem.
-   * When any stem is soloed, only soloed stems are audible.
-   */
   public setStemSolo(
     stem: StemType,
     solo: boolean,
@@ -367,9 +572,6 @@ export class AudioGraphEngine {
     this.applyStemGains(rampDuration);
   }
 
-  /**
-   * Recalculate and apply effective gain values across all 4 stems.
-   */
   private applyStemGains(rampDuration: number = DEFAULT_RAMP_DURATION): void {
     const anySolo = STEM_TYPES.some((s) => this.channels[s].state.solo);
 
@@ -386,7 +588,6 @@ export class AudioGraphEngine {
       } else {
         if (!ch.state.muted) {
           targetGain = ch.state.volume;
-          // Apply auto-sidechain ducking to backing stems when active
           if (this.isDuckingEnabledState && stem !== 'vocals') {
             targetGain *= this.currentDuckingGainReduction;
           }
@@ -399,9 +600,6 @@ export class AudioGraphEngine {
     }
   }
 
-  /**
-   * Sets stereo panning for a stem (-1.0 left to 1.0 right).
-   */
   public setStemPan(
     stem: StemType,
     pan: number,
@@ -418,9 +616,134 @@ export class AudioGraphEngine {
     }
   }
 
-  /**
-   * Modulates the Master DJ Filter (Lowpass / Highpass sweep with resonance).
-   */
+  // ---------------- FX RACK METHODS ----------------
+
+  public setStemEq(stem: StemType, config: Partial<StemEqConfig>, ramp: number = DEFAULT_RAMP_DURATION): void {
+    const ch = this.channels[stem];
+    if (!ch) return;
+    ch.fxState.eq = { ...ch.fxState.eq, ...config };
+    const eq = ch.fxState.eq;
+
+    const lowGain = eq.enabled ? eq.lowGain : 0;
+    const midGain = eq.enabled ? eq.midGain : 0;
+    const highGain = eq.enabled ? eq.highGain : 0;
+
+    this.rampParam(ch.eqLowNode.gain, lowGain, ramp);
+    this.rampParam(ch.eqLowNode.frequency, eq.lowFreq, ramp);
+    this.rampParam(ch.eqMidNode.gain, midGain, ramp);
+    this.rampParam(ch.eqMidNode.frequency, eq.midFreq, ramp);
+    this.rampParam(ch.eqHighNode.gain, highGain, ramp);
+    this.rampParam(ch.eqHighNode.frequency, eq.highFreq, ramp);
+  }
+
+  public setStemCompressor(stem: StemType, config: Partial<StemCompConfig>, ramp: number = DEFAULT_RAMP_DURATION): void {
+    const ch = this.channels[stem];
+    if (!ch) return;
+    ch.fxState.compressor = { ...ch.fxState.compressor, ...config };
+    const comp = ch.fxState.compressor;
+
+    this.rampParam(ch.compressorNode.threshold, comp.threshold, ramp);
+    this.rampParam(ch.compressorNode.ratio, comp.ratio, ramp);
+    this.rampParam(ch.compressorNode.attack, comp.attack, ramp);
+    this.rampParam(ch.compressorNode.release, comp.release, ramp);
+    this.rampParam(ch.compressorNode.knee, comp.knee, ramp);
+
+    this.rampParam(ch.compressorDryGain.gain, comp.enabled ? 0 : 1, ramp);
+    this.rampParam(ch.compressorWetGain.gain, comp.enabled ? 1 : 0, ramp);
+  }
+
+  public setStemSaturation(stem: StemType, config: Partial<StemSaturationConfig>, ramp: number = DEFAULT_RAMP_DURATION): void {
+    const ch = this.channels[stem];
+    if (!ch) return;
+    ch.fxState.saturation = { ...ch.fxState.saturation, ...config };
+    const sat = ch.fxState.saturation;
+
+    ch.saturationNode.curve = makeDistortionCurve(sat.drive) as unknown as Float32Array<ArrayBuffer>;
+    const mix = sat.enabled ? sat.mix : 0;
+    this.rampParam(ch.saturationDryGain.gain, 1.0 - mix, ramp);
+    this.rampParam(ch.saturationWetGain.gain, mix, ramp);
+  }
+
+  public setStemDelay(stem: StemType, config: Partial<StemDelayConfig>, ramp: number = DEFAULT_RAMP_DURATION): void {
+    const ch = this.channels[stem];
+    if (!ch) return;
+    ch.fxState.delay = { ...ch.fxState.delay, ...config };
+    const del = ch.fxState.delay;
+
+    this.rampParam(ch.delayNode.delayTime, del.time, ramp);
+    this.rampParam(ch.delayFeedbackGain.gain, del.feedback, ramp);
+
+    const mix = del.enabled ? del.mix : 0;
+    this.rampParam(ch.delayDryGain.gain, 1.0, ramp);
+    this.rampParam(ch.delayWetGain.gain, mix, ramp);
+  }
+
+  public setStemReverb(stem: StemType, config: Partial<StemReverbConfig>, ramp: number = DEFAULT_RAMP_DURATION): void {
+    const ch = this.channels[stem];
+    if (!ch) return;
+    ch.fxState.reverb = { ...ch.fxState.reverb, ...config };
+    const rev = ch.fxState.reverb;
+
+    if (config.decay !== undefined) {
+      ch.reverbNode.buffer = buildImpulseResponse(this.audioContext, rev.decay);
+    }
+
+    const mix = rev.enabled ? rev.mix : 0;
+    this.rampParam(ch.reverbDryGain.gain, 1.0 - mix * 0.4, ramp);
+    this.rampParam(ch.reverbWetGain.gain, mix, ramp);
+  }
+
+  public setStemFxRackState(stem: StemType, fxState: StemFxState): void {
+    this.setStemEq(stem, fxState.eq);
+    this.setStemCompressor(stem, fxState.compressor);
+    this.setStemSaturation(stem, fxState.saturation);
+    this.setStemDelay(stem, fxState.delay);
+    this.setStemReverb(stem, fxState.reverb);
+  }
+
+  public getStemFxState(stem: StemType): StemFxState {
+    return JSON.parse(JSON.stringify(this.channels[stem]?.fxState || DEFAULT_FX_RACK_STATE[stem]));
+  }
+
+  public getAllFxState(): FxRackState {
+    const res = {} as FxRackState;
+    for (const s of STEM_TYPES) {
+      res[s] = this.getStemFxState(s);
+    }
+    return res;
+  }
+
+  public getCompressorGainReduction(stem: StemType): number {
+    const ch = this.channels[stem];
+    if (!ch || !ch.fxState.compressor.enabled) return 0;
+    return ch.compressorNode.reduction || 0; // in dB (negative value)
+  }
+
+  // ---------------- AUTOMATION EVALUATION ----------------
+
+  public applyAutomationPoint(target: string, value: number, ramp: number = 0.02): void {
+    const parts = target.split('.');
+    if (parts.length === 2) {
+      const [scope, prop] = parts;
+      if (scope === 'master') {
+        if (prop === 'djFilterCutoff') {
+          const filterType: 'lowpass' | 'highpass' = this.djFilterState.type === 'highpass' ? 'highpass' : 'lowpass';
+          this.setDjFilter(value, filterType, this.djFilterState.Q, ramp);
+        }
+        else if (prop === 'volume') this.setMasterVolume(value, ramp);
+      } else if (STEM_TYPES.includes(scope as StemType)) {
+        const stem = scope as StemType;
+        if (prop === 'volume') this.setStemVolume(stem, value, ramp);
+        else if (prop === 'pan') this.setStemPan(stem, value, ramp);
+        else if (prop === 'reverbMix') this.setStemReverb(stem, { mix: value }, ramp);
+        else if (prop === 'delayMix') this.setStemDelay(stem, { mix: value }, ramp);
+        else if (prop === 'drive') this.setStemSaturation(stem, { drive: value }, ramp);
+      }
+    }
+  }
+
+  // ---------------- DJ FILTER & MASTER ----------------
+
   public setDjFilter(
     cutoffHz: number,
     type: 'lowpass' | 'highpass' = 'lowpass',
@@ -441,9 +764,6 @@ export class AudioGraphEngine {
     };
   }
 
-  /**
-   * Sets master output volume with smooth ramping.
-   */
   public setMasterVolume(
     volume: number,
     rampDuration: number = DEFAULT_RAMP_DURATION
@@ -453,33 +773,205 @@ export class AudioGraphEngine {
     this.rampParam(this.masterGainNode.gain, clampedVol, rampDuration);
   }
 
-  /**
-   * Enable or disable looping for synchronized playback.
-   */
   public setLoop(loop: boolean): void {
     this.isLooping = loop;
     for (const stem of STEM_TYPES) {
-      const source = this.channels[stem].sourceNode;
-      if (source) {
-        source.loop = loop;
+      if (this.channels[stem].sourceNode) {
+        this.channels[stem].sourceNode!.loop = loop;
       }
     }
   }
 
-  /**
-   * Helper to ramp AudioParam smoothly avoiding audio pops.
-   */
-  private rampParam(
-    param: AudioParam,
-    targetValue: number,
-    rampDuration: number = DEFAULT_RAMP_DURATION
-  ): void {
+  public isPlaying(): boolean {
+    return this.isPlayingState;
+  }
+
+  public getDuration(): number {
+    return this.duration;
+  }
+
+  public getCurrentTime(): number {
+    if (!this.isPlayingState) {
+      return this.pausedOffset;
+    }
+    const elapsed = this.audioContext.currentTime - this.startTime;
+    const current = this.startOffset + elapsed;
+
+    if (this.duration > 0) {
+      if (this.isLooping) {
+        return current % this.duration;
+      }
+      return Math.min(current, this.duration);
+    }
+    return current;
+  }
+
+  public isReady(): boolean {
+    return STEM_TYPES.some((s) => this.channels[s].buffer !== null);
+  }
+
+  public getStemStates(): Record<StemType, StemState> {
+    return this.getAllStemStates();
+  }
+
+  public getMasterVolume(): number {
+    return this.masterVolume;
+  }
+
+  public getDjFilterState(): DjFilterState {
+    return { ...this.djFilterState };
+  }
+
+  public getStemState(stem: StemType): StemState {
+    return { ...this.channels[stem].state };
+  }
+
+  public getAllStemStates(): Record<StemType, StemState> {
+    const states = {} as Record<StemType, StemState>;
+    for (const stem of STEM_TYPES) {
+      states[stem] = this.getStemState(stem);
+    }
+    return states;
+  }
+
+  public getAudioContext(): AudioContext {
+    return this.audioContext;
+  }
+
+  public getStemFrequencyData(stem: StemType): Uint8Array {
+    const analyser = this.channels[stem].analyserNode;
+    let buffer = this.freqBuffers.get(analyser);
+    if (!buffer || buffer.length !== analyser.frequencyBinCount) {
+      buffer = new Uint8Array(analyser.frequencyBinCount);
+      this.freqBuffers.set(analyser, buffer);
+    }
+    analyser.getByteFrequencyData(buffer as unknown as Uint8Array<ArrayBuffer>);
+    return buffer;
+  }
+
+  public getMasterFrequencyData(): Uint8Array {
+    const analyser = this.masterAnalyserNode;
+    let buffer = this.freqBuffers.get(analyser);
+    if (!buffer || buffer.length !== analyser.frequencyBinCount) {
+      buffer = new Uint8Array(analyser.frequencyBinCount);
+      this.freqBuffers.set(analyser, buffer);
+    }
+    analyser.getByteFrequencyData(buffer as unknown as Uint8Array<ArrayBuffer>);
+    return buffer;
+  }
+
+  public getMasterTimeDomainData(): Uint8Array {
+    const analyser = this.masterAnalyserNode;
+    let buffer = this.waveBuffers.get(analyser);
+    if (!buffer || buffer.length !== analyser.frequencyBinCount) {
+      buffer = new Uint8Array(analyser.frequencyBinCount);
+      this.waveBuffers.set(analyser, buffer);
+    }
+    analyser.getByteTimeDomainData(buffer as unknown as Uint8Array<ArrayBuffer>);
+    return buffer;
+  }
+
+  public getFrequencyData(stem?: StemType): Uint8Array {
+    if (stem) return this.getStemFrequencyData(stem);
+    return this.getMasterFrequencyData();
+  }
+
+  public getTimeDomainData(stem?: StemType): Uint8Array {
+    if (stem) return this.getWaveformData(stem);
+    return this.getMasterTimeDomainData();
+  }
+
+  public getStemRMS(stem: StemType): number {
+    const data = this.getStemFrequencyData(stem);
+    if (data.length === 0) return 0;
+    let sum = 0;
+    for (let i = 0; i < data.length; i++) {
+      const val = data[i] / 255;
+      sum += val * val;
+    }
+    return Math.sqrt(sum / data.length);
+  }
+
+  public setDuckingEnabled(enabled: boolean): void {
+    this.isDuckingEnabledState = enabled;
+    if (!enabled) {
+      this.currentDuckingGainReduction = 1.0;
+      this.applyStemGains(DEFAULT_RAMP_DURATION);
+    }
+  }
+
+  public isDuckingEnabled(): boolean {
+    return this.isDuckingEnabledState;
+  }
+
+  public updateSidechainDucking(): number {
+    if (!this.isDuckingEnabledState || !this.isPlayingState) {
+      return 1.0;
+    }
+
+    const vocalRms = this.getStemRMS('vocals');
+    if (vocalRms > this.duckingThreshold) {
+      this.currentDuckingGainReduction = this.duckingAmount;
+    } else {
+      this.currentDuckingGainReduction = 1.0;
+    }
+
+    this.applyStemGains(0.05);
+    return this.currentDuckingGainReduction;
+  }
+
+  public getStemPeakOverview(stem: StemType, samplesCount: number = 800): Float32Array {
+    const buffer = this.channels[stem]?.buffer;
+    if (!buffer) {
+      return new Float32Array(samplesCount);
+    }
+
+    const cached = this.peakCache.get(buffer);
+    if (cached && cached.length === samplesCount) {
+      return cached;
+    }
+
+    const rawData = buffer.getChannelData(0);
+    const totalSamples = rawData.length;
+    const blockSize = Math.floor(totalSamples / samplesCount);
+    const peaks = new Float32Array(samplesCount);
+
+    for (let i = 0; i < samplesCount; i++) {
+      const start = i * blockSize;
+      let maxVal = 0;
+      for (let j = 0; j < blockSize; j++) {
+        const val = Math.abs(rawData[start + j] || 0);
+        if (val > maxVal) maxVal = val;
+      }
+      peaks[i] = maxVal;
+    }
+
+    this.peakCache.set(buffer, peaks);
+    return peaks;
+  }
+
+  public getStemPeakData(stem: StemType, samplesCount: number = 800): Float32Array {
+    return this.getStemPeakOverview(stem, samplesCount);
+  }
+
+  public getWaveformData(stem: StemType): Uint8Array {
+    const analyser = this.channels[stem].analyserNode;
+    let buffer = this.waveBuffers.get(analyser);
+    if (!buffer || buffer.length !== analyser.frequencyBinCount) {
+      buffer = new Uint8Array(analyser.frequencyBinCount);
+      this.waveBuffers.set(analyser, buffer);
+    }
+    analyser.getByteTimeDomainData(buffer as unknown as Uint8Array<ArrayBuffer>);
+    return buffer;
+  }
+
+  private rampParam(param: AudioParam, targetValue: number, duration: number): void {
     const now = this.audioContext.currentTime;
     try {
       param.cancelScheduledValues(now);
       param.setValueAtTime(param.value, now);
-      if (rampDuration > 0) {
-        param.linearRampToValueAtTime(targetValue, now + rampDuration);
+      if (duration > 0) {
+        param.linearRampToValueAtTime(targetValue, now + duration);
       } else {
         param.setValueAtTime(targetValue, now);
       }
@@ -488,286 +980,29 @@ export class AudioGraphEngine {
     }
   }
 
-  /**
-   * Returns 8-bit FFT frequency bin data for visualization.
-   */
-  public getFrequencyData(stem?: StemType): Uint8Array {
-    const analyser =
-      stem && this.channels[stem]
-        ? this.channels[stem].analyserNode
-        : this.masterAnalyserNode;
-
-    let buffer = this.freqBuffers.get(analyser);
-    if (!buffer || buffer.length !== analyser.frequencyBinCount) {
-      buffer = new Uint8Array(analyser.frequencyBinCount);
-      this.freqBuffers.set(analyser, buffer);
-    }
-
-    analyser.getByteFrequencyData(buffer as unknown as Uint8Array<ArrayBuffer>);
-    return buffer;
-  }
-
-  /**
-   * Returns 8-bit time-domain waveform data for oscilloscope rendering.
-   */
-  public getWaveformData(stem?: StemType): Uint8Array {
-    const analyser =
-      stem && this.channels[stem]
-        ? this.channels[stem].analyserNode
-        : this.masterAnalyserNode;
-
-    let buffer = this.waveBuffers.get(analyser);
-    if (!buffer || buffer.length !== analyser.fftSize) {
-      buffer = new Uint8Array(analyser.fftSize);
-      this.waveBuffers.set(analyser, buffer);
-    }
-
-    analyser.getByteTimeDomainData(buffer as unknown as Uint8Array<ArrayBuffer>);
-    return buffer;
-  }
-
-  /**
-   * Returns current playback position in seconds.
-   */
-  public getCurrentTime(): number {
-    if (this.isPlayingState) {
-      const elapsed = this.audioContext.currentTime - this.startTime;
-      const current = this.startOffset + elapsed;
-      if (this.isLooping && this.duration > 0) {
-        return current % this.duration;
-      }
-      return Math.min(current, this.duration);
-    }
-    return this.pausedOffset;
-  }
-
-  /**
-   * Returns total track duration in seconds.
-   */
-  public getDuration(): number {
-    return this.duration;
-  }
-
-  /**
-   * Returns whether audio is currently playing.
-   */
-  public isPlaying(): boolean {
-    return this.isPlayingState;
-  }
-
-  /**
-   * Returns whether looping is enabled.
-   */
-  public getIsLooping(): boolean {
-    return this.isLooping;
-  }
-
-  /**
-   * Returns whether all stem buffers are decoded and ready.
-   */
-  public isReady(): boolean {
-    return STEM_TYPES.every((s) => this.channels[s].buffer !== null);
-  }
-
-  /**
-   * Returns copy of state for a given stem.
-   */
-  public getStemState(stem: StemType): StemState {
-    return { ...this.channels[stem].state };
-  }
-
-  /**
-   * Returns snapshot of all stem states.
-   */
-  public getStemStates(): Record<StemType, StemState> {
-    const states = {} as Record<StemType, StemState>;
-    for (const stem of STEM_TYPES) {
-      states[stem] = { ...this.channels[stem].state };
-    }
-    return states;
-  }
-
-  /**
-   * Returns current DJ Filter configuration.
-   */
-  public getDjFilterState(): DjFilterState {
-    return { ...this.djFilterState };
-  }
-
-  /**
-   * Enable or disable automatic sidechain ducking.
-   */
-  public setDuckingEnabled(enabled: boolean): void {
-    this.isDuckingEnabledState = enabled;
-    if (!enabled) {
-      this.currentDuckingGainReduction = 1.0;
-    }
-    this.applyStemGains(0.04);
-  }
-
-  /**
-   * Returns whether sidechain ducking is currently enabled.
-   */
-  public isDuckingEnabled(): boolean {
-    return this.isDuckingEnabledState;
-  }
-
-  /**
-   * Returns current ducking gain reduction multiplier (1.0 = none, <1.0 = ducked).
-   */
-  public getDuckingGainReduction(): number {
-    return this.currentDuckingGainReduction;
-  }
-
-  /**
-   * Real-time sidechain analysis frame update.
-   * Analyzes Vocals RMS energy and applies smooth ducking attack/release to backing stems.
-   * Returns the current gain reduction multiplier.
-   */
-  public updateAutoDucking(): number {
-    if (!this.isDuckingEnabledState || !this.isPlayingState) {
-      if (this.currentDuckingGainReduction !== 1.0) {
-        this.currentDuckingGainReduction = 1.0;
-        this.applyStemGains(0.04);
-      }
-      return 1.0;
-    }
-
-    const vocalWave = this.getWaveformData('vocals');
-    let sumSquares = 0;
-    for (let i = 0; i < vocalWave.length; i++) {
-      const normalized = (vocalWave[i] - 128) / 128; // -1 to 1
-      sumSquares += normalized * normalized;
-    }
-    const rms = Math.sqrt(sumSquares / vocalWave.length);
-
-    // If vocal level is above threshold, target ducking amount, else restore to 1.0
-    const targetReduction = rms > this.duckingThreshold ? this.duckingAmount : 1.0;
-
-    // Fast attack (0.25), gentle release (0.05)
-    const smoothing = targetReduction < this.currentDuckingGainReduction ? 0.25 : 0.05;
-    const nextReduction = this.currentDuckingGainReduction + (targetReduction - this.currentDuckingGainReduction) * smoothing;
-
-    if (Math.abs(nextReduction - this.currentDuckingGainReduction) > 0.005) {
-      this.currentDuckingGainReduction = nextReduction;
-      this.applyStemGains(0.02);
-    }
-
-    return this.currentDuckingGainReduction;
-  }
-
-  /**
-   * Returns the decoded AudioBuffer for a given stem, or null if not loaded.
-   */
-  public getStemBuffer(stem: StemType): AudioBuffer | null {
-    return this.channels[stem]?.buffer || null;
-  }
-
-  /**
-   * Extracts downsampled peak amplitude data (0.0 to 1.0) for waveform rendering.
-   * Cached per AudioBuffer for instant rendering.
-   */
-  public getStemPeakData(stem: StemType = 'vocals', samples: number = 300): Float32Array {
-    const buffer = this.channels[stem]?.buffer;
-    if (!buffer) {
-      return new Float32Array(samples);
-    }
-
-    const cached = this.peakCache.get(buffer);
-    if (cached && cached.length === samples) {
-      return cached;
-    }
-
-    const channelData = buffer.getChannelData(0);
-    const totalSamples = channelData.length;
-    const blockSize = Math.floor(totalSamples / samples);
-    const peaks = new Float32Array(samples);
-
-    for (let i = 0; i < samples; i++) {
-      const start = i * blockSize;
-      const end = Math.min(start + blockSize, totalSamples);
-      let maxVal = 0;
-      for (let j = start; j < end; j += 4) { // stride of 4 for speed
-        const absVal = Math.abs(channelData[j]);
-        if (absVal > maxVal) {
-          maxVal = absVal;
-        }
-      }
-      peaks[i] = Math.min(1.0, maxVal);
-    }
-
-    this.peakCache.set(buffer, peaks);
-    return peaks;
-  }
-
-  /**
-   * Returns current master output volume.
-   */
-  public getMasterVolume(): number {
-    return this.masterVolume;
-  }
-
-  /**
-   * Returns direct reference to underlying AudioContext.
-   */
-  public getAudioContext(): AudioContext {
-    return this.audioContext;
-  }
-
-  /**
-   * Registers a playback ended callback.
-   * Returns an unregister function.
-   */
   public onEnded(callback: () => void): () => void {
     this.endedCallbacks.add(callback);
-    return () => {
-      this.endedCallbacks.delete(callback);
-    };
+    return () => this.endedCallbacks.delete(callback);
   }
 
   private emitEnded(): void {
-    for (const cb of this.endedCallbacks) {
+    this.endedCallbacks.forEach((cb) => {
       try {
         cb();
       } catch (err) {
         console.error('Error in onEnded callback:', err);
       }
-    }
+    });
   }
 
-  /**
-   * Disposes all active sources, disconnects DSP nodes, and cleans up AudioContext.
-   */
-  public dispose(closeContext: boolean = !this.isExternalContext): void {
+  public async dispose(): Promise<void> {
     this.pause();
     this.endedCallbacks.clear();
-
-    // Disconnect channel nodes
     for (const stem of STEM_TYPES) {
-      const channel = this.channels[stem];
-      if (channel.pannerNode) {
-        try {
-          channel.pannerNode.disconnect();
-        } catch {}
-      }
-      try {
-        channel.gainNode.disconnect();
-        channel.analyserNode.disconnect();
-      } catch {}
-      channel.buffer = null;
+      this.channels[stem].buffer = null;
     }
-
-    // Disconnect master nodes
-    try {
-      this.masterFilterNode.disconnect();
-      this.masterGainNode.disconnect();
-      this.masterAnalyserNode.disconnect();
-    } catch {}
-
-    if (closeContext && this.audioContext.state !== 'closed') {
-      try {
-        this.audioContext.close();
-      } catch {}
+    if (!this.isExternalContext && this.audioContext.state !== 'closed') {
+      await this.audioContext.close();
     }
   }
 }

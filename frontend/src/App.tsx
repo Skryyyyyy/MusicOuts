@@ -7,18 +7,27 @@ import {
   ProcessStatus,
   TrackMetadata,
   StudioView,
+  StudioMode,
   HardwareInfo,
+  FxRackState,
+  DEFAULT_FX_RACK_STATE,
+  PerformanceSession,
+  MusicOutsProject,
 } from "./types";
 import { AudioGraphEngine } from "./engine/audioGraph";
 import { GestureTracker, DEFAULT_GESTURE_STATE } from "./engine/gestureTracker";
+import { AutomationManager, PerformanceCaptureTracker } from "./engine/automationEngine";
+import { saveProjectToFile, loadProjectFromFile } from "./engine/projectManager";
 
 import { DawTransport } from "./components/DawTransport";
 import { ArrangementView } from "./components/ArrangementView";
 import { MixConsoleView } from "./components/views/MixConsoleView";
+import { FxRackView } from "./components/views/FxRackView";
 import { GestureLabView } from "./components/views/GestureLabView";
 import { VisualStageView } from "./components/views/VisualStageView";
 import { DemixLabView } from "./components/views/DemixLabView";
 import { StudioGuideModal } from "./components/StudioGuideModal";
+import { CapturePerformanceModal } from "./components/CapturePerformanceModal";
 import { VirtualSynth } from "./components/VirtualSynth";
 import { ChevronDown, ChevronUp, Music } from "lucide-react";
 
@@ -30,18 +39,23 @@ const INITIAL_STEM_STATES: Record<StemType, StemState> = {
 };
 
 export const App: React.FC = () => {
-  // Navigation & Workspace View State
+  // Mode & Workspace View State
   const [currentView, setCurrentView] = useState<StudioView>("arrangement");
+  const [mode, setMode] = useState<StudioMode>("producer");
   const [isGuideOpen, setIsGuideOpen] = useState<boolean>(false);
   const [isFooterCollapsed, setIsFooterCollapsed] = useState<boolean>(false);
   const [showSynth, setShowSynth] = useState<boolean>(false);
+  const [showAutomation, setShowAutomation] = useState<boolean>(true);
 
   // Real Hardware Detection State
   const [hardwareInfo, setHardwareInfo] = useState<HardwareInfo | null>(null);
 
-  // Audio Engine & Gesture Tracker references
+  // Audio Engine & Vision & Automation references
   const audioGraphRef = useRef<AudioGraphEngine | null>(null);
   const gestureTrackerRef = useRef<GestureTracker | null>(null);
+  const automationManagerRef = useRef<AutomationManager>(new AutomationManager());
+  const performanceTrackerRef = useRef<PerformanceCaptureTracker>(new PerformanceCaptureTracker());
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Studio State
   const [trackMetadata, setTrackMetadata] = useState<TrackMetadata | null>(null);
@@ -55,8 +69,14 @@ export const App: React.FC = () => {
   const [isDucking, setIsDucking] = useState<boolean>(false);
   const [duckingReduction, setDuckingReduction] = useState<number>(1.0);
 
-  // Stems State
+  // Stems & FX Rack State
   const [stems, setStems] = useState<Record<StemType, StemState>>(INITIAL_STEM_STATES);
+  const [fxRackState, setFxRackState] = useState<FxRackState>(DEFAULT_FX_RACK_STATE);
+
+  // Automation & Performance Capture State
+  const [isRecordingAutomation, setIsRecordingAutomation] = useState<boolean>(false);
+  const [isCapturingPerformance, setIsCapturingPerformance] = useState<boolean>(false);
+  const [captureSession, setCaptureSession] = useState<PerformanceSession | null>(null);
 
   // DJ Filter State
   const [djFilterCutoff, setDjFilterCutoff] = useState<number>(20000);
@@ -97,12 +117,10 @@ export const App: React.FC = () => {
     const gestureTracker = new GestureTracker();
     gestureTrackerRef.current = gestureTracker;
 
-    // Initialize MediaPipe Vision WASM assets asynchronously
     gestureTracker.initialize().catch((err) => {
       console.warn("GestureTracker initialize background notice:", err);
     });
 
-    // Register onEnded callback
     const unregisterEnded = audioGraph.onEnded(() => {
       setIsPlaying(false);
       setCurrentTime(audioGraph.getCurrentTime());
@@ -115,7 +133,7 @@ export const App: React.FC = () => {
     };
   }, []);
 
-  // Real-time animation playback clock and auto-ducking loop
+  // Real-time animation playback clock, auto-ducking loop, and automation evaluation
   useEffect(() => {
     let animId: number;
 
@@ -123,10 +141,20 @@ export const App: React.FC = () => {
       const audioGraph = audioGraphRef.current;
       if (audioGraph) {
         if (audioGraph.isPlaying()) {
-          setCurrentTime(audioGraph.getCurrentTime());
+          const t = audioGraph.getCurrentTime();
+          setCurrentTime(t);
           setDuration(audioGraph.getDuration() || 180);
-          const reduction = audioGraph.updateAutoDucking();
+
+          const reduction = audioGraph.updateSidechainDucking();
           setDuckingReduction(reduction);
+
+          // Apply Automation Playback if not currently recording
+          if (!isRecordingAutomation && showAutomation) {
+            const autoValues = automationManagerRef.current.evaluateAt(t);
+            for (const [target, val] of Object.entries(autoValues)) {
+              audioGraph.applyAutomationPoint(target, val);
+            }
+          }
         }
       }
       animId = requestAnimationFrame(tick);
@@ -136,18 +164,26 @@ export const App: React.FC = () => {
     return () => {
       cancelAnimationFrame(animId);
     };
-  }, []);
+  }, [isRecordingAutomation, showAutomation]);
 
-  // Handle gesture telemetry frame updates and apply dynamic audio modulation
+  // Handle gesture telemetry frame updates and apply dynamic audio modulation & automation recording
   const handleGestureStateChange = useCallback(
     (state: GestureState) => {
       setGestureState(state);
       const audioGraph = audioGraphRef.current;
       if (!audioGraph) return;
 
+      const t = audioGraph.getCurrentTime();
+
       // 1. Dual Fist Kill Switch (with 350ms hold delay)
       if (state.isDualFist) {
         audioGraph.setMasterVolume(0.0, 0.02);
+        if (isRecordingAutomation) {
+          automationManagerRef.current.recordPoint(t, "master.volume", 0.0);
+        }
+        if (isCapturingPerformance) {
+          performanceTrackerRef.current.logEvent(t, "gesture", { killSwitch: true });
+        }
         return;
       } else {
         audioGraph.setMasterVolume(masterVolume, 0.05);
@@ -168,6 +204,18 @@ export const App: React.FC = () => {
         }));
         audioGraph.setStemSolo("vocals", state.leftHand.isPinching, 0.04);
         audioGraph.setStemMute("vocals", state.leftHand.isFist, 0.04);
+
+        if (isRecordingAutomation) {
+          automationManagerRef.current.recordPoint(t, "vocals.volume", vocalVol);
+        }
+        if (isCapturingPerformance) {
+          performanceTrackerRef.current.logEvent(t, "gesture", {
+            hand: "left",
+            height: vocalVol,
+            pinch: state.leftHand.isPinching,
+            fist: state.leftHand.isFist,
+          });
+        }
       }
 
       // 3. Right Hand Modulation (Instruments Level & DJ Filter Sweep)
@@ -179,13 +227,25 @@ export const App: React.FC = () => {
           other: { ...prev.other, volume: otherVol },
         }));
 
-        // DJ Filter Sweep
         setDjFilterCutoff(state.djFilterCutoff);
         setDjFilterType(state.djFilterType);
         audioGraph.setDjFilter(state.djFilterCutoff, state.djFilterType, djFilterQ, 0.04);
+
+        if (isRecordingAutomation) {
+          automationManagerRef.current.recordPoint(t, "other.volume", otherVol);
+          automationManagerRef.current.recordPoint(t, "master.djFilterCutoff", state.djFilterCutoff);
+        }
+        if (isCapturingPerformance) {
+          performanceTrackerRef.current.logEvent(t, "gesture", {
+            hand: "right",
+            height: otherVol,
+            filterCutoff: state.djFilterCutoff,
+            filterType: state.djFilterType,
+          });
+        }
       }
     },
-    [masterVolume, djFilterQ]
+    [masterVolume, djFilterQ, isRecordingAutomation, isCapturingPerformance]
   );
 
   // Track Ingestion Handler (Demucs AI finishes separation)
@@ -198,18 +258,17 @@ export const App: React.FC = () => {
     if (audioGraph) {
       try {
         await audioGraph.loadStems(loadedTrack.id, loadedTrack.stems);
-        // Apply initial stem states
         for (const stem of STEM_TYPES) {
           audioGraph.setStemVolume(stem, stems[stem].volume, 0);
           audioGraph.setStemPan(stem, stems[stem].pan, 0);
           audioGraph.setStemMute(stem, stems[stem].muted, 0);
           audioGraph.setStemSolo(stem, stems[stem].solo, 0);
+          audioGraph.setStemFxRackState(stem, fxRackState[stem]);
         }
         audioGraph.setMasterVolume(masterVolume, 0);
         audioGraph.setDjFilter(djFilterCutoff, djFilterType, djFilterQ, 0);
         setIsLoadingStems(false);
 
-        // Auto-start playback on ready so audio plays immediately!
         await audioGraph.play();
         setIsPlaying(true);
         setCurrentView("arrangement");
@@ -298,6 +357,15 @@ export const App: React.FC = () => {
       [stem]: { ...prev[stem], volume: val },
     }));
     audioGraphRef.current?.setStemVolume(stem, val);
+
+    if (isRecordingAutomation) {
+      const t = audioGraphRef.current?.getCurrentTime() || 0;
+      automationManagerRef.current.recordPoint(t, `${stem}.volume`, val);
+    }
+    if (isCapturingPerformance) {
+      const t = audioGraphRef.current?.getCurrentTime() || 0;
+      performanceTrackerRef.current.logEvent(t, "fader", { stem, volume: val });
+    }
   };
 
   const handleStemPanChange = (stem: StemType, pan: number) => {
@@ -306,6 +374,11 @@ export const App: React.FC = () => {
       [stem]: { ...prev[stem], pan },
     }));
     audioGraphRef.current?.setStemPan(stem, pan);
+
+    if (isRecordingAutomation) {
+      const t = audioGraphRef.current?.getCurrentTime() || 0;
+      automationManagerRef.current.recordPoint(t, `${stem}.pan`, pan);
+    }
   };
 
   const handleStemMuteToggle = (stem: StemType) => {
@@ -340,9 +413,132 @@ export const App: React.FC = () => {
     setDjFilterType(type);
     setDjFilterQ(q);
     audioGraphRef.current?.setDjFilter(cutoff, type, q);
+
+    if (isRecordingAutomation) {
+      const t = audioGraphRef.current?.getCurrentTime() || 0;
+      automationManagerRef.current.recordPoint(t, "master.djFilterCutoff", cutoff);
+    }
+    if (isCapturingPerformance) {
+      const t = audioGraphRef.current?.getCurrentTime() || 0;
+      performanceTrackerRef.current.logEvent(t, "filter", { cutoff, type, q });
+    }
   };
 
-  // Keyboard Shortcuts Navigation (1-5 for workspaces, Space for Play/Pause, L for Loop, Home for Reset)
+  // FX Rack Change Handler
+  const handleStemFxChange = (stem: StemType, newFxState: typeof DEFAULT_FX_RACK_STATE['vocals']) => {
+    setFxRackState((prev) => ({
+      ...prev,
+      [stem]: newFxState,
+    }));
+    if (isCapturingPerformance) {
+      const t = audioGraphRef.current?.getCurrentTime() || 0;
+      performanceTrackerRef.current.logEvent(t, "fx", { stem, fx: newFxState });
+    }
+  };
+
+  // Automation Recording Toggle
+  const handleToggleRecordAutomation = () => {
+    const nextRec = !isRecordingAutomation;
+    setIsRecordingAutomation(nextRec);
+    automationManagerRef.current.setRecording(nextRec);
+  };
+
+  // Performance Capture Toggle
+  const buildCurrentProjectSnapshot = (): MusicOutsProject => {
+    return {
+      version: "1.1",
+      title: trackMetadata?.title || "MusicOuts_Project",
+      trackId: trackMetadata?.id || "demo",
+      duration: duration,
+      bpm: 120,
+      key: "A minor",
+      timeSignature: "4/4",
+      mode: mode,
+      stemStates: stems,
+      fxRack: fxRackState,
+      masterVolume: masterVolume,
+      djFilterCutoff: djFilterCutoff,
+      djFilterType: djFilterType,
+      isDucking: isDucking,
+      markers: [],
+      automation: automationManagerRef.current.getPoints(),
+      created: new Date().toISOString(),
+    };
+  };
+
+  const handleToggleCapturePerformance = () => {
+    if (!isCapturingPerformance) {
+      // Start capture
+      setIsCapturingPerformance(true);
+      const snapshot = buildCurrentProjectSnapshot();
+      performanceTrackerRef.current.startCapture(snapshot);
+      if (!isPlaying) {
+        handlePlayToggle();
+      }
+    } else {
+      // Stop capture and open modal
+      setIsCapturingPerformance(false);
+      const snapshot = buildCurrentProjectSnapshot();
+      const session = performanceTrackerRef.current.stopCapture(snapshot);
+      if (session) {
+        setCaptureSession(session);
+      }
+    }
+  };
+
+  // Save Project Action (.musicouts)
+  const handleSaveProject = () => {
+    const project = buildCurrentProjectSnapshot();
+    saveProjectToFile(project);
+  };
+
+  // Open Project Action
+  const handleOpenProjectClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleProjectFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const project = await loadProjectFromFile(file);
+      if (project.stemStates) setStems(project.stemStates);
+      if (project.fxRack) {
+        setFxRackState(project.fxRack);
+        if (audioGraphRef.current) {
+          for (const s of STEM_TYPES) {
+            audioGraphRef.current.setStemFxRackState(s, project.fxRack[s]);
+          }
+        }
+      }
+      if (project.masterVolume !== undefined) setMasterVolume(project.masterVolume);
+      if (project.djFilterCutoff !== undefined) setDjFilterCutoff(project.djFilterCutoff);
+      if (project.djFilterType) setDjFilterType(project.djFilterType);
+      if (project.mode) setMode(project.mode);
+      if (project.automation) automationManagerRef.current.setPoints(project.automation);
+
+      alert(`Loaded Project "${project.title}" successfully!`);
+    } catch (err) {
+      alert(`Error loading project: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      e.target.value = "";
+    }
+  };
+
+  // Play Performance Take
+  const handlePlayTake = (session: PerformanceSession) => {
+    setCaptureSession(null);
+    if (session.projectSnapshot?.automation) {
+      automationManagerRef.current.setPoints(session.projectSnapshot.automation);
+    }
+    handleSeek(0);
+    if (!isPlaying) {
+      handlePlayToggle();
+    }
+  };
+
+  // Keyboard Shortcuts Navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (
@@ -360,12 +556,15 @@ export const App: React.FC = () => {
           setCurrentView("mixer");
           break;
         case "3":
-          setCurrentView("gesture");
+          setCurrentView("fxrack");
           break;
         case "4":
-          setCurrentView("visualizer");
+          setCurrentView("gesture");
           break;
         case "5":
+          setCurrentView("visualizer");
+          break;
+        case "6":
           setCurrentView("ingestion");
           break;
         case " ":
@@ -394,6 +593,15 @@ export const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#0e0f12] text-zinc-100 flex flex-col font-sans selection:bg-cyan-500/20 select-none">
+      {/* Hidden File Input for Open Project */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleProjectFileSelected}
+        accept=".musicouts,.json"
+        className="hidden"
+      />
+
       {/* 1. Omnipresent Top Studio Transport & Workspace Navigator */}
       <DawTransport
         isPlaying={isPlaying}
@@ -410,9 +618,19 @@ export const App: React.FC = () => {
         duckingReduction={duckingReduction}
         audioGraph={audioGraphRef.current}
         currentView={currentView}
+        mode={mode}
         hardwareInfo={hardwareInfo}
+        isRecordingAutomation={isRecordingAutomation}
+        isCapturingPerformance={isCapturingPerformance}
+        isSynthOpen={showSynth}
+        onModeChange={setMode}
         onViewChange={setCurrentView}
         onOpenGuide={() => setIsGuideOpen(true)}
+        onOpenSynth={() => setShowSynth(!showSynth)}
+        onSaveProject={handleSaveProject}
+        onOpenProject={handleOpenProjectClick}
+        onToggleRecordAutomation={handleToggleRecordAutomation}
+        onToggleCapturePerformance={handleToggleCapturePerformance}
         onPlayToggle={handlePlayToggle}
         onStop={handleStop}
         onSeek={handleSeek}
@@ -423,7 +641,7 @@ export const App: React.FC = () => {
         onDjFilterChange={handleDjFilterChange}
       />
 
-      {/* 2. Main Studio Workspace (Dedicated Page Views) */}
+      {/* 2. Main Studio Workspace (Persistent Cached Page Views) */}
       <main className="flex-1 p-3 flex flex-col max-w-[1920px] w-full mx-auto overflow-hidden relative">
         {/* Page 1: Multi-track Arrangement Window */}
         <div className={`flex-1 h-full min-h-[500px] flex flex-col gap-2 ${currentView === "arrangement" ? "block" : "hidden"}`}>
@@ -458,6 +676,9 @@ export const App: React.FC = () => {
             isLooping={isLooping}
             stemStates={stems}
             gestureState={gestureState}
+            automationPoints={automationManagerRef.current.getPoints()}
+            showAutomation={showAutomation}
+            onToggleAutomation={() => setShowAutomation(!showAutomation)}
             onSeek={handleSeek}
             onStemVolumeChange={handleStemVolumeChange}
             onStemMuteToggle={handleStemMuteToggle}
@@ -489,7 +710,17 @@ export const App: React.FC = () => {
           />
         </div>
 
-        {/* Page 3: Vision AI & Gesture Lab */}
+        {/* Page 3: 5-Insert FX Rack View */}
+        <div className={`flex-1 h-full min-h-[500px] flex flex-col ${currentView === "fxrack" ? "block" : "hidden"}`}>
+          <FxRackView
+            audioGraph={audioGraphRef.current}
+            fxRackState={fxRackState}
+            onFxChange={handleStemFxChange}
+            className="flex-1 h-full min-h-[500px]"
+          />
+        </div>
+
+        {/* Page 4: Vision AI & Gesture Lab */}
         <div className={`flex-1 h-full min-h-[500px] flex flex-col ${currentView === "gesture" ? "block" : "hidden"}`}>
           <GestureLabView
             gestureTracker={gestureTrackerRef.current}
@@ -501,7 +732,7 @@ export const App: React.FC = () => {
           />
         </div>
 
-        {/* Page 4: Audio-Reactive Visual Stage */}
+        {/* Page 5: Audio-Reactive Visual Stage */}
         <div className={`flex-1 h-full min-h-[500px] flex flex-col ${currentView === "visualizer" ? "block" : "hidden"}`}>
           <VisualStageView
             audioGraph={audioGraphRef.current}
@@ -512,7 +743,7 @@ export const App: React.FC = () => {
           />
         </div>
 
-        {/* Page 5: Neural Demixing & Media Ingestion Lab */}
+        {/* Page 6: Neural Demixing & Media Ingestion Lab */}
         <div className={`flex-1 h-full min-h-[500px] flex flex-col ${currentView === "ingestion" ? "block" : "hidden"}`}>
           <DemixLabView
             trackMetadata={trackMetadata}
@@ -550,17 +781,21 @@ export const App: React.FC = () => {
                 <span className="text-zinc-300">Demucs Engine: {processStatus.message}</span>
               </div>
               <span className="text-zinc-700">|</span>
-              <span>Web Audio DSP: 4-Track 64-bit Flow</span>
+              <span>Mode: <strong className="text-cyan-300 uppercase">{mode}</strong></span>
               <span className="text-zinc-700">|</span>
-              <span className={isDucking ? "text-purple-400 font-semibold" : "text-zinc-500"}>
-                Sidechain Ducking: {isDucking ? "ACTIVE" : "OFF"}
+              <span className={isRecordingAutomation ? "text-pink-400 font-bold animate-pulse" : "text-zinc-500"}>
+                Auto Record: {isRecordingAutomation ? "ARMED" : "IDLE"}
+              </span>
+              <span className="text-zinc-700">|</span>
+              <span className={isCapturingPerformance ? "text-red-400 font-bold animate-pulse" : "text-zinc-500"}>
+                Performance: {isCapturingPerformance ? "CAPTURING" : "STANDBY"}
               </span>
             </>
           )}
         </div>
         {!isFooterCollapsed && (
           <div className="flex items-center space-x-3">
-            <span>Active View: <strong className="text-cyan-300 uppercase">{currentView}</strong></span>
+            <span>View: <strong className="text-cyan-300 uppercase">{currentView}</strong></span>
             <span className="text-zinc-700">|</span>
             <span>Dual Fist Kill Switch: {gestureState.isDualFist ? "ACTIVE" : "READY"}</span>
             <span className="text-zinc-700">|</span>
@@ -569,8 +804,13 @@ export const App: React.FC = () => {
         )}
       </footer>
 
-      {/* 4. Studio Guide & Onboarding Modal */}
+      {/* 4. Studio Guide & Performance Take Modals */}
       <StudioGuideModal isOpen={isGuideOpen} onClose={() => setIsGuideOpen(false)} />
+      <CapturePerformanceModal
+        session={captureSession}
+        onClose={() => setCaptureSession(null)}
+        onPlayTake={handlePlayTake}
+      />
     </div>
   );
 };
