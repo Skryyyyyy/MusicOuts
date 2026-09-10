@@ -94,8 +94,81 @@ export class AutomationManager {
     this.sortPoints();
   }
 
+  public updatePoint(pointId: string, updates: Partial<AutomationPoint>): void {
+    const idx = this.points.findIndex((p) => p.id === pointId);
+    if (idx !== -1) {
+      this.points[idx] = { ...this.points[idx], ...updates };
+      this.sortPoints();
+    }
+  }
+
   /**
-   * Interpolate values at timestamp t
+   * Adobe-style keyframe toggle:
+   * If a keyframe exists within snapThreshold seconds at this target, removes it.
+   * Otherwise, adds a new keyframe with the specified value and curve type.
+   */
+  public toggleKeyframeAt(
+    time: number,
+    target: string,
+    currentValue: number,
+    curve: import('../types').KeyframeInterpolation = 'bezier',
+    threshold: number = 0.2
+  ): { action: 'added' | 'removed'; point?: AutomationPoint; pointId?: string } {
+    const existing = this.points.find(
+      (p) => p.target === target && Math.abs(p.time - time) <= threshold
+    );
+
+    if (existing) {
+      this.deletePoint(existing.id);
+      return { action: 'removed', pointId: existing.id };
+    } else {
+      const newPoint: AutomationPoint = {
+        id: `kf_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        time: Math.max(0, Math.round(time * 1000) / 1000),
+        target,
+        value: Math.round(currentValue * 1000) / 1000,
+        curve,
+      };
+      this.addPoint(newPoint);
+      return { action: 'added', point: newPoint };
+    }
+  }
+
+  /**
+   * Get previous, current, and next keyframes around time t for Adobe navigator [◀ ◆ ▶]
+   */
+  public getNavigatorKeyframes(
+    time: number,
+    target: string,
+    threshold: number = 0.15
+  ): {
+    prev: AutomationPoint | null;
+    current: AutomationPoint | null;
+    next: AutomationPoint | null;
+  } {
+    const targetPoints = this.points
+      .filter((p) => p.target === target)
+      .sort((a, b) => a.time - b.time);
+
+    let prev: AutomationPoint | null = null;
+    let current: AutomationPoint | null = null;
+    let next: AutomationPoint | null = null;
+
+    for (const p of targetPoints) {
+      if (Math.abs(p.time - time) <= threshold) {
+        current = p;
+      } else if (p.time < time - threshold) {
+        prev = p;
+      } else if (p.time > time + threshold && next === null) {
+        next = p;
+      }
+    }
+
+    return { prev, current, next };
+  }
+
+  /**
+   * Interpolate values at timestamp t with Adobe easing (Linear, Bezier Ease In/Out, Hold)
    */
   public evaluateAt(time: number): Record<string, number> {
     if (this.points.length === 0) return {};
@@ -136,8 +209,20 @@ export class AutomationManager {
       if (duration === 0) {
         result[target] = pBefore.value;
       } else {
-        const factor = (time - pBefore.time) / duration;
-        result[target] = pBefore.value + (pAfter.value - pBefore.value) * factor;
+        const factor = Math.max(0, Math.min(1, (time - pBefore.time) / duration));
+        const curve = pBefore.curve || 'linear';
+
+        if (curve === 'hold') {
+          // Adobe Hold keyframe: stays at previous value until next keyframe
+          result[target] = pBefore.value;
+        } else if (curve === 'bezier') {
+          // Adobe Bezier smoothstep ease-in/out: 3t^2 - 2t^3
+          const smooth = factor * factor * (3 - 2 * factor);
+          result[target] = pBefore.value + (pAfter.value - pBefore.value) * smooth;
+        } else {
+          // Standard linear interpolation
+          result[target] = pBefore.value + (pAfter.value - pBefore.value) * factor;
+        }
       }
     }
 

@@ -5,7 +5,7 @@ export const DEFAULT_WASM_PATH = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-
 export const DEFAULT_MODEL_PATH =
   'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task';
 
-export const DEFAULT_EMA_ALPHA = 0.35;
+export const DEFAULT_EMA_ALPHA = 0.75;
 export const DEFAULT_PINCH_THRESHOLD = 0.06;
 export const DEFAULT_FIST_THRESHOLD = 0.15;
 
@@ -186,7 +186,7 @@ export class GestureTracker {
   private fistThreshold: number;
   private isTrackingState: boolean = false;
   private dualFistStartTime: number | null = null;
-  public fistHoldDurationMs: number = 350;
+  public fistHoldDurationMs: number = 200;
 
   constructor(options?: GestureTrackerOptions) {
     this.alpha = options?.alpha ?? DEFAULT_EMA_ALPHA;
@@ -211,9 +211,9 @@ export class GestureTracker {
         },
         runningMode: 'VIDEO',
         numHands: 2,
-        minHandDetectionConfidence: 0.6,
-        minHandPresenceConfidence: 0.6,
-        minTrackingConfidence: 0.6,
+        minHandDetectionConfidence: 0.5,
+        minHandPresenceConfidence: 0.5,
+        minTrackingConfidence: 0.5,
       });
     } catch {
       // Fallback to CPU delegate if GPU delegate initialization is unavailable
@@ -224,9 +224,9 @@ export class GestureTracker {
         },
         runningMode: 'VIDEO',
         numHands: 2,
-        minHandDetectionConfidence: 0.6,
-        minHandPresenceConfidence: 0.6,
-        minTrackingConfidence: 0.6,
+        minHandDetectionConfidence: 0.5,
+        minHandPresenceConfidence: 0.5,
+        minTrackingConfidence: 0.5,
       });
     }
   }

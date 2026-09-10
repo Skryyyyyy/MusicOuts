@@ -110,11 +110,13 @@ export const StudioGuideModal: React.FC<StudioGuideModalProps> = ({ isOpen, onCl
               <Keyboard className="w-4 h-4" />
               <span>Keyboard Shortcuts</span>
             </h4>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-[11px]">
-              <div className="bg-[#101114] p-2 rounded border border-[#22242b]"><span className="text-cyan-400 font-bold">1 - 5</span>: Switch Workspace</div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-center text-[11px]">
+              <div className="bg-[#101114] p-2 rounded border border-[#22242b]"><span className="text-cyan-400 font-bold">1 - 6</span>: Switch Workspace</div>
               <div className="bg-[#101114] p-2 rounded border border-[#22242b]"><span className="text-cyan-400 font-bold">Space</span>: Play / Pause</div>
               <div className="bg-[#101114] p-2 rounded border border-[#22242b]"><span className="text-cyan-400 font-bold">Home / R</span>: Return to 0:00</div>
               <div className="bg-[#101114] p-2 rounded border border-[#22242b]"><span className="text-cyan-400 font-bold">L</span>: Toggle Loop Cycle</div>
+              <div className="bg-[#101114] p-2 rounded border border-[#22242b]"><span className="text-amber-400 font-bold">Ctrl+Z</span>: Undo Action</div>
+              <div className="bg-[#101114] p-2 rounded border border-[#22242b]"><span className="text-amber-400 font-bold">Ctrl+Y / Shift+Z</span>: Redo Action</div>
             </div>
           </div>
         </div>

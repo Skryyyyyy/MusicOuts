@@ -57,6 +57,60 @@ describe('AutomationManager', () => {
     expect(manager.getPoints('vocals.volume')).toEqual([]);
     expect(manager.getPoints('drums.volume').length).toBe(1);
   });
+
+  it('toggles keyframe on/off at playhead position (Adobe Premiere style)', () => {
+    // 1. Toggle adds keyframe when none exists
+    const res1 = manager.toggleKeyframeAt(2.0, 'vocals.volume', 0.75, 'bezier');
+    expect(res1.action).toBe('added');
+    expect(res1.point?.value).toBe(0.75);
+    expect(res1.point?.curve).toBe('bezier');
+    expect(manager.getPoints('vocals.volume').length).toBe(1);
+
+    // 2. Toggle removes keyframe when playhead is on existing keyframe
+    const res2 = manager.toggleKeyframeAt(2.05, 'vocals.volume', 0.75, 'bezier', 0.1);
+    expect(res2.action).toBe('removed');
+    expect(manager.getPoints('vocals.volume').length).toBe(0);
+  });
+
+  it('navigates previous and next keyframes for Adobe [◀ ◆ ▶] navigator', () => {
+    manager.addPoint({ id: 'k1', time: 1.0, target: 'vocals.volume', value: 0.2 });
+    manager.addPoint({ id: 'k2', time: 4.0, target: 'vocals.volume', value: 0.8 });
+    manager.addPoint({ id: 'k3', time: 7.0, target: 'vocals.volume', value: 0.5 });
+
+    // At t = 2.5: prev is k1, current is null, next is k2
+    const nav1 = manager.getNavigatorKeyframes(2.5, 'vocals.volume');
+    expect(nav1.prev?.id).toBe('k1');
+    expect(nav1.current).toBeNull();
+    expect(nav1.next?.id).toBe('k2');
+
+    // At t = 4.05: current is k2, prev is k1, next is k3
+    const nav2 = manager.getNavigatorKeyframes(4.05, 'vocals.volume', 0.1);
+    expect(nav2.current?.id).toBe('k2');
+    expect(nav2.prev?.id).toBe('k1');
+    expect(nav2.next?.id).toBe('k3');
+  });
+
+  it('evaluates Bezier, Linear, and Hold easing curves correctly', () => {
+    // Test Hold: value stays constant at p1 until p2
+    manager.addPoint({ id: 'h1', time: 0.0, target: 'vocals.volume', value: 0.2, curve: 'hold' });
+    manager.addPoint({ id: 'h2', time: 2.0, target: 'vocals.volume', value: 0.8, curve: 'hold' });
+
+    expect(manager.evaluateAt(1.0)['vocals.volume']).toBe(0.2);
+    expect(manager.evaluateAt(1.99)['vocals.volume']).toBe(0.2);
+    expect(manager.evaluateAt(2.0)['vocals.volume']).toBe(0.8);
+
+    // Test Bezier: smooth S-curve easing
+    manager.clearAll();
+    manager.addPoint({ id: 'b1', time: 0.0, target: 'drums.volume', value: 0.0, curve: 'bezier' });
+    manager.addPoint({ id: 'b2', time: 1.0, target: 'drums.volume', value: 1.0, curve: 'bezier' });
+
+    // In cubic smoothstep: at t=0.25, smooth = 3*(0.25)^2 - 2*(0.25)^3 = 0.1875 - 0.03125 = 0.15625 < 0.25
+    expect(manager.evaluateAt(0.25)['drums.volume']).toBeCloseTo(0.15625, 4);
+    // at t=0.5, smooth = 0.5
+    expect(manager.evaluateAt(0.5)['drums.volume']).toBeCloseTo(0.5, 4);
+    // at t=0.75, smooth = 0.84375 > 0.75
+    expect(manager.evaluateAt(0.75)['drums.volume']).toBeCloseTo(0.84375, 4);
+  });
 });
 
 describe('PerformanceCaptureTracker', () => {

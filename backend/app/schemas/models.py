@@ -12,7 +12,20 @@ class MediaInfo(BaseModel):
 
 
 class ProcessRequest(BaseModel):
-    url: Optional[str] = Field(None, description="YouTube URL to process")
+    url: Optional[str] = Field(None, description="YouTube URL or media link to process")
+    track_id: Optional[str] = Field(None, description="Pre-downloaded or existing media track ID")
+    start_time: Optional[float] = Field(None, description="Start offset in seconds for timeline segment separation")
+    end_time: Optional[float] = Field(None, description="End offset in seconds for timeline segment separation")
+
+
+class PreviewResponse(BaseModel):
+    track_id: str = Field(..., description="Track identifier for the previewed media")
+    title: str = Field(..., description="Media title")
+    duration: float = Field(0.0, description="Total media duration in seconds")
+    audio_url: str = Field(..., description="URL to stream source audio for preview player")
+    video_url: Optional[str] = Field(None, description="URL to stream source video if available")
+    has_video: bool = Field(False, description="Whether source video is available")
+    thumbnail: Optional[str] = Field(None, description="Thumbnail image URL if available")
 
 
 class ProcessResponse(BaseModel):
@@ -29,6 +42,7 @@ class StemResult(BaseModel):
     bass_path: str = Field(..., description="Path to isolated bass audio stem")
     other_path: str = Field(..., description="Path to isolated other (instruments) audio stem")
     is_cached: bool = Field(False, description="True if loaded from existing stem cache")
+    duration: Optional[float] = Field(0.0, description="Duration of isolated stems in seconds")
 
 
 class ProcessStatusEvent(BaseModel):

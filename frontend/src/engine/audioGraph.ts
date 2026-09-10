@@ -11,6 +11,7 @@ import {
   DEFAULT_FX_RACK_STATE,
   FxRackState,
   AudioClip,
+  ReverbPresetType,
 } from '../types';
 
 export const DEFAULT_RAMP_DURATION = 0.03; // 30ms click-free ramp
@@ -37,25 +38,100 @@ export function makeDistortionCurve(drive: number = 0.5, n_samples: number = 441
 }
 
 /**
- * Synthesizes an algorithmic stereo impulse response buffer for convolution reverb
+ * Reverses an AudioBuffer sample-by-sample with pristine fidelity
+ */
+export function reverseAudioBuffer(audioCtx: AudioContext, buffer: AudioBuffer): AudioBuffer {
+  const numChannels = buffer.numberOfChannels;
+  const reversed = audioCtx.createBuffer(numChannels, buffer.length, buffer.sampleRate);
+  for (let c = 0; c < numChannels; c++) {
+    const src = buffer.getChannelData(c);
+    const dest = reversed.getChannelData(c);
+    const len = src.length;
+    for (let i = 0; i < len; i++) {
+      dest[i] = src[len - 1 - i];
+    }
+  }
+  return reversed;
+}
+
+/**
+ * Synthesizes a high-definition algorithmic impulse response buffer for convolution reverb
+ * Supporting presets: 'hall', 'room', 'plate', 'reverse' (swell), 'cathedral'
  */
 export function buildImpulseResponse(
   audioCtx: AudioContext,
   duration: number = 2.0,
-  decay: number = 2.0
+  decay: number = 2.0,
+  preset: ReverbPresetType = 'hall'
 ): AudioBuffer {
   const sampleRate = audioCtx.sampleRate || 44100;
-  const length = Math.max(1, Math.floor(sampleRate * Math.max(0.2, duration)));
+  const dur = Math.max(0.2, Math.min(8.0, duration));
+  const length = Math.max(1, Math.floor(sampleRate * dur));
   const impulse = audioCtx.createBuffer(2, length, sampleRate);
   const left = impulse.getChannelData(0);
   const right = impulse.getChannelData(1);
 
-  for (let i = 0; i < length; i++) {
-    const n = i / length;
-    const env = Math.pow(1 - n, decay * 1.5);
-    left[i] = (Math.random() * 2 - 1) * env;
-    right[i] = (Math.random() * 2 - 1) * env;
+  const stereoPhaseOffset = Math.floor(sampleRate * 0.012); // 12ms decorrelation
+
+  if (preset === 'reverse') {
+    // Reverse Reverb (psychedelic swelling crescendo into the beat)
+    for (let i = 0; i < length; i++) {
+      const n = i / length;
+      const env = Math.pow(n, decay * 1.3);
+      left[i] = (Math.random() * 2 - 1) * env;
+      right[i] = (Math.random() * 2 - 1) * env;
+    }
+  } else if (preset === 'room') {
+    // Tight acoustic room with discrete early reflections & warm diffusion
+    const earlyTimes = [0.008, 0.015, 0.024, 0.035, 0.048].map((t) => Math.floor(t * sampleRate));
+    const earlyGains = [0.8, 0.65, 0.5, 0.35, 0.2];
+    for (let i = 0; i < length; i++) {
+      const n = i / length;
+      const env = Math.exp(-decay * 2.8 * n);
+      let valL = (Math.random() * 2 - 1) * env * 0.6;
+      let valR = (Math.random() * 2 - 1) * env * 0.6;
+      for (let k = 0; k < earlyTimes.length; k++) {
+        if (i === earlyTimes[k]) {
+          valL += earlyGains[k];
+          valR += earlyGains[k] * 0.9;
+        }
+      }
+      left[i] = valL;
+      right[i] = valR;
+    }
+  } else if (preset === 'plate') {
+    // Plate: dense, bright, fast buildup with metallic shimmering diffusion
+    for (let i = 0; i < length; i++) {
+      const n = i / length;
+      const env = Math.exp(-decay * 1.8 * n);
+      const diffL = Math.sin(i * 0.18) * 0.25 + (Math.random() * 2 - 1) * 0.75;
+      const diffR = Math.cos(i * 0.18) * 0.25 + (Math.random() * 2 - 1) * 0.75;
+      left[i] = diffL * env;
+      right[i] = diffR * env;
+    }
+  } else if (preset === 'cathedral') {
+    // Cathedral: expansive sacred hall with huge shimmering tail
+    for (let i = 0; i < length; i++) {
+      const n = i / length;
+      const env = Math.pow(1 - n, decay * 0.8);
+      const shimmer = 1 + 0.15 * Math.sin(2 * Math.PI * 3.5 * (i / sampleRate));
+      left[i] = (Math.random() * 2 - 1) * env * shimmer;
+      right[i] = (Math.random() * 2 - 1) * env * shimmer;
+    }
+  } else {
+    // Hall (Default): deep, rich reverberation with natural stereo space
+    for (let i = 0; i < length; i++) {
+      const n = i / length;
+      const env = Math.pow(1 - n, decay * 1.3);
+      const lSample = (Math.random() * 2 - 1) * env;
+      const rIdx = (i + stereoPhaseOffset) % length;
+      const rEnv = Math.pow(1 - rIdx / length, decay * 1.3);
+      const rSample = (Math.random() * 2 - 1) * rEnv;
+      left[i] = lSample;
+      right[i] = rSample;
+    }
   }
+
   return impulse;
 }
 
@@ -158,6 +234,26 @@ export class AudioGraphEngine {
     drums: 0,
     bass: 0,
     other: 0,
+  };
+
+  // Audio Buffer Reversal Engine State
+  private isStemReversedMap: Record<StemType, boolean> = {
+    vocals: false,
+    drums: false,
+    bass: false,
+    other: false,
+  };
+  private originalStemBuffers: Record<StemType, AudioBuffer | null> = {
+    vocals: null,
+    drums: null,
+    bass: null,
+    other: null,
+  };
+  private reversedStemBuffers: Record<StemType, AudioBuffer | null> = {
+    vocals: null,
+    drums: null,
+    bass: null,
+    other: null,
   };
 
   // Callbacks
@@ -427,6 +523,9 @@ export class AudioGraphEngine {
       const arrayBuffer = await response.arrayBuffer();
       const decodedBuffer = await this.decodeAudio(arrayBuffer);
       this.channels[stem].buffer = decodedBuffer;
+      this.originalStemBuffers[stem] = decodedBuffer;
+      this.reversedStemBuffers[stem] = null;
+      this.isStemReversedMap[stem] = false;
     });
 
     await Promise.all(loadPromises);
@@ -479,6 +578,17 @@ export class AudioGraphEngine {
 
     await Promise.all(loadPromises);
     this.songBuffers.set(songId, loadedBuffers);
+
+    let maxDuration = this.duration;
+    for (const stem of STEM_TYPES) {
+      if (loadedBuffers[stem]) {
+        maxDuration = Math.max(maxDuration, loadedBuffers[stem].duration);
+      }
+    }
+    if (maxDuration > 0) {
+      this.duration = maxDuration;
+    }
+
     return loadedBuffers;
   }
 
@@ -520,10 +630,11 @@ export class AudioGraphEngine {
 
     if (this.clips.length > 0) {
       // Schedule Audio Clips on Timeline
+      let maxEnd = this.duration;
+      let activeCount = 0;
+
       for (const clip of this.clips) {
         if (clip.muted) continue;
-        const clipEnd = clip.startTime + clip.duration;
-        if (clampedOffset >= clipEnd) continue;
 
         let buffer: AudioBuffer | null = null;
         if (clip.songId && this.songBuffers.has(clip.songId)) {
@@ -534,18 +645,58 @@ export class AudioGraphEngine {
         }
         if (!buffer) continue;
 
+        if (clip.isReversed) {
+          buffer = reverseAudioBuffer(this.audioContext, buffer);
+        }
+
+        const effectiveClipDuration = clip.duration > 0 ? clip.duration : buffer.duration;
+        const clipEnd = clip.startTime + effectiveClipDuration;
+        maxEnd = Math.max(maxEnd, clipEnd);
+        if (clampedOffset >= clipEnd) continue;
+
         const source = this.audioContext.createBufferSource();
         source.buffer = buffer;
-
         source.connect(this.channels[clip.stem].inputNode);
 
         const startDelay = Math.max(0, clip.startTime - clampedOffset);
         const sourceOffset = clip.sourceOffset + Math.max(0, clampedOffset - clip.startTime);
-        const playDuration = clip.duration - Math.max(0, clampedOffset - clip.startTime);
+        const remainingClipTime = effectiveClipDuration - Math.max(0, clampedOffset - clip.startTime);
+        const playDuration = Math.min(Math.max(0, buffer.duration - sourceOffset), remainingClipTime);
 
         if (playDuration > 0) {
+          activeCount++;
+          source.onended = () => {
+            const idx = this.clipSourceNodes.indexOf(source);
+            if (idx !== -1) {
+              this.clipSourceNodes.splice(idx, 1);
+            }
+            if (this.clipSourceNodes.length === 0 && this.isPlayingState) {
+              if (this.isLooping) {
+                this.play(0);
+              } else {
+                this.isPlayingState = false;
+                this.pausedOffset = this.duration;
+                this.emitEnded();
+              }
+            }
+          };
+
           source.start(now + startDelay, sourceOffset, playDuration);
           this.clipSourceNodes.push(source);
+        }
+      }
+
+      if (maxEnd > 0) {
+        this.duration = Math.max(this.duration, maxEnd);
+      }
+
+      if (activeCount === 0 && clampedOffset >= this.duration) {
+        if (this.isLooping) {
+          this.play(0);
+        } else {
+          this.isPlayingState = false;
+          this.pausedOffset = this.duration;
+          this.emitEnded();
         }
       }
     } else {
@@ -691,6 +842,109 @@ export class AudioGraphEngine {
    */
   public getStemOffsets(): Record<StemType, number> {
     return { ...this.stemOffsets };
+  }
+
+  // ---------------- STEM & CLIP REVERSE METHODS ----------------
+
+  /**
+   * Toggles reverse playback on or off for an individual stem.
+   * If playing, hot-restarts the stem playback with the reversed buffer seamlessly.
+   */
+  public toggleReverseStem(stem: StemType): boolean {
+    const channel = this.channels[stem];
+    if (!channel) return false;
+
+    const nextReversed = !this.isStemReversedMap[stem];
+    this.isStemReversedMap[stem] = nextReversed;
+
+    const orig = this.originalStemBuffers[stem] || channel.buffer;
+    if (!orig) return nextReversed;
+
+    if (nextReversed) {
+      if (!this.reversedStemBuffers[stem]) {
+        this.reversedStemBuffers[stem] = reverseAudioBuffer(this.audioContext, orig);
+      }
+      channel.buffer = this.reversedStemBuffers[stem];
+    } else {
+      channel.buffer = orig;
+    }
+
+    // Invalidate peak overview cache so reversed waveform will re-render
+    if (channel.buffer) {
+      this.peakCache.delete(channel.buffer);
+    }
+
+    // Hot-restart stem if playing
+    if (this.isPlayingState) {
+      const currentStemSec = this.getStemTime(stem);
+      if (channel.sourceNode) {
+        try {
+          channel.sourceNode.stop();
+          channel.sourceNode.disconnect();
+        } catch {
+          // Ignore
+        }
+        channel.sourceNode = null;
+      }
+
+      if (channel.buffer) {
+        const now = this.audioContext.currentTime;
+        const source = this.audioContext.createBufferSource();
+        source.buffer = channel.buffer;
+        source.loop = this.isLooping;
+        source.connect(channel.inputNode);
+
+        source.onended = () => {
+          if (channel.sourceNode === source) {
+            channel.sourceNode = null;
+          }
+        };
+
+        source.start(now, currentStemSec);
+        channel.sourceNode = source;
+      }
+    }
+
+    return nextReversed;
+  }
+
+  /**
+   * Returns true if the given stem is currently playing in reverse.
+   */
+  public isStemReversed(stem: StemType): boolean {
+    return !!this.isStemReversedMap[stem];
+  }
+
+  /**
+   * Returns a snapshot of reverse states for all 4 stems.
+   */
+  public getStemReversedStates(): Record<StemType, boolean> {
+    return { ...this.isStemReversedMap };
+  }
+
+  /**
+   * Toggles reverse across all 4 stems simultaneously.
+   */
+  public reverseAllStems(): boolean {
+    const anyNotReversed = STEM_TYPES.some((s) => !this.isStemReversedMap[s]);
+    for (const s of STEM_TYPES) {
+      if (anyNotReversed !== this.isStemReversedMap[s]) {
+        this.toggleReverseStem(s);
+      }
+    }
+    return anyNotReversed;
+  }
+
+  /**
+   * Toggles reverse playback for an individual audio clip slice.
+   */
+  public toggleReverseClip(clipId: string): void {
+    const clip = this.clips.find((c) => c.id === clipId);
+    if (!clip) return;
+    clip.isReversed = !clip.isReversed;
+    if (this.isPlayingState) {
+      this.play(this.getCurrentTime());
+    }
   }
 
   private stopActiveSources(): void {
@@ -950,8 +1204,8 @@ export class AudioGraphEngine {
     ch.fxState.reverb = { ...ch.fxState.reverb, ...config };
     const rev = ch.fxState.reverb;
 
-    if (config.decay !== undefined) {
-      ch.reverbNode.buffer = buildImpulseResponse(this.audioContext, rev.decay);
+    if (config.decay !== undefined || config.preset !== undefined) {
+      ch.reverbNode.buffer = buildImpulseResponse(this.audioContext, rev.decay, rev.decay, rev.preset || 'hall');
     }
 
     const mix = rev.enabled ? rev.mix : 0;

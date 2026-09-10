@@ -38,6 +38,16 @@ export interface DawTransportProps {
   onDuckingToggle: () => void;
   onMasterVolumeChange?: (vol: number) => void;
   onDjFilterChange?: (cutoff: number, type: "lowpass" | "highpass") => void;
+  canUndo?: boolean;
+  canRedo?: boolean;
+  onUndo?: () => void;
+  onRedo?: () => void;
+  isInspectorOpen?: boolean;
+  isMediaBayOpen?: boolean;
+  isFooterCollapsed?: boolean;
+  onToggleInspector?: () => void;
+  onToggleMediaBay?: () => void;
+  onToggleFooter?: () => void;
   className?: string;
 }
 
@@ -68,6 +78,16 @@ export const DawTransport: React.FC<DawTransportProps> = ({
   onReset,
   onLoopToggle,
   onDuckingToggle,
+  canUndo = false,
+  canRedo = false,
+  onUndo,
+  onRedo,
+  isInspectorOpen,
+  isMediaBayOpen,
+  isFooterCollapsed,
+  onToggleInspector,
+  onToggleMediaBay,
+  onToggleFooter,
   className = "",
 }) => {
   const [showTimeInBars, setShowTimeInBars] = useState<boolean>(false);
@@ -149,6 +169,30 @@ export const DawTransport: React.FC<DawTransportProps> = ({
           </div>
 
           <div className="flex items-center gap-pad-micro text-on-surface-variant ml-pad-sm">
+            <button
+              onClick={onUndo}
+              disabled={!canUndo}
+              className={`w-pad-lg h-pad-lg flex items-center justify-center rounded transition-all ${
+                canUndo
+                  ? "hover:bg-surface-container text-on-surface cursor-pointer"
+                  : "text-on-surface-variant/30 cursor-not-allowed opacity-40"
+              }`}
+              title="Undo Action (Ctrl+Z)"
+            >
+              <span className="material-symbols-outlined text-[15px]">undo</span>
+            </button>
+            <button
+              onClick={onRedo}
+              disabled={!canRedo}
+              className={`w-pad-lg h-pad-lg flex items-center justify-center rounded transition-all ${
+                canRedo
+                  ? "hover:bg-surface-container text-on-surface cursor-pointer"
+                  : "text-on-surface-variant/30 cursor-not-allowed opacity-40"
+              }`}
+              title="Redo Action (Ctrl+Y / Ctrl+Shift+Z)"
+            >
+              <span className="material-symbols-outlined text-[15px]">redo</span>
+            </button>
             <button onClick={onSaveProject} className="w-pad-lg h-pad-lg flex items-center justify-center hover:bg-surface-container hover:text-on-surface rounded" title="Save Project">
               <span className="material-symbols-outlined text-[14px]">save</span>
             </button>
@@ -192,6 +236,36 @@ export const DawTransport: React.FC<DawTransportProps> = ({
               <span className="material-symbols-outlined text-[16px]">{t.icon}</span>
             </button>
           ))}
+        </div>
+
+        {/* Undo / Redo Actions Button Group */}
+        <div className="flex items-center gap-pad-micro bg-surface-container p-pad-micro rounded shrink-0 border border-surface-container-highest/40">
+          <button
+            onClick={onUndo}
+            disabled={!canUndo}
+            className={`flex items-center space-x-1 px-2 py-1 rounded text-xs transition-all ${
+              canUndo
+                ? "bg-surface-container-high hover:bg-surface-container-highest text-on-surface cursor-pointer shadow-sm active:scale-95"
+                : "text-on-surface-variant/30 cursor-not-allowed opacity-40"
+            }`}
+            title="Undo Action (Ctrl+Z)"
+          >
+            <span className="material-symbols-outlined text-[15px]">undo</span>
+            <span className="font-mono text-[10px] font-bold">UNDO</span>
+          </button>
+          <button
+            onClick={onRedo}
+            disabled={!canRedo}
+            className={`flex items-center space-x-1 px-2 py-1 rounded text-xs transition-all ${
+              canRedo
+                ? "bg-surface-container-high hover:bg-surface-container-highest text-on-surface cursor-pointer shadow-sm active:scale-95"
+                : "text-on-surface-variant/30 cursor-not-allowed opacity-40"
+            }`}
+            title="Redo Action (Ctrl+Y / Ctrl+Shift+Z)"
+          >
+            <span className="material-symbols-outlined text-[15px]">redo</span>
+            <span className="font-mono text-[10px] font-bold">REDO</span>
+          </button>
         </div>
 
         {/* Transport Control Buttons */}
@@ -331,6 +405,54 @@ export const DawTransport: React.FC<DawTransportProps> = ({
             >
               Mode: {mode}
             </button>
+          )}
+
+          {/* Cubase Zone Windows Minimize/Toggle Options */}
+          {(onToggleInspector || onToggleFooter || onToggleMediaBay) && (
+            <div className="flex items-center gap-1 border-l border-surface-container-highest/60 pl-2">
+              {onToggleInspector && (
+                <button
+                  onClick={onToggleInspector}
+                  className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold flex items-center gap-1 transition-all ${
+                    isInspectorOpen
+                      ? "bg-primary-container text-on-primary-container shadow-sm"
+                      : "bg-surface-container-high text-on-surface-variant hover:text-on-surface"
+                  }`}
+                  title={isInspectorOpen ? "Minimize Left Inspector Window" : "Open Left Inspector Window"}
+                >
+                  <span className="material-symbols-outlined text-[12px]">dock_to_right</span>
+                  <span className="hidden sm:inline">INSP</span>
+                </button>
+              )}
+              {onToggleFooter && (
+                <button
+                  onClick={onToggleFooter}
+                  className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold flex items-center gap-1 transition-all ${
+                    !isFooterCollapsed
+                      ? "bg-primary-container text-on-primary-container shadow-sm"
+                      : "bg-surface-container-high text-on-surface-variant hover:text-on-surface"
+                  }`}
+                  title={isFooterCollapsed ? "Expand Bottom MixConsole" : "Minimize Bottom MixConsole"}
+                >
+                  <span className="material-symbols-outlined text-[12px]">dock_to_bottom</span>
+                  <span className="hidden sm:inline">MIX</span>
+                </button>
+              )}
+              {onToggleMediaBay && (
+                <button
+                  onClick={onToggleMediaBay}
+                  className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold flex items-center gap-1 transition-all ${
+                    isMediaBayOpen
+                      ? "bg-primary-container text-on-primary-container shadow-sm"
+                      : "bg-surface-container-high text-on-surface-variant hover:text-on-surface"
+                  }`}
+                  title={isMediaBayOpen ? "Minimize Right MediaBay Window" : "Open Right MediaBay Window"}
+                >
+                  <span className="material-symbols-outlined text-[12px]">dock_to_left</span>
+                  <span className="hidden sm:inline">MEDIA</span>
+                </button>
+              )}
+            </div>
           )}
         </div>
       </div>

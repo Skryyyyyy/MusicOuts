@@ -116,3 +116,56 @@ def get_stem_audio(track_id: str, stem_name: str):
         filename=f"{clean_stem}{ext}",
         headers={"Accept-Ranges": "bytes"},
     )
+
+
+@router.get("/source/{track_id}")
+@router.get("/{track_id}/source")
+def get_source_audio(track_id: str):
+    """
+    Streams downloaded or uploaded raw normalized audio file for preview waveform playback.
+    """
+    track_dl_dir = DOWNLOADS_DIR / track_id
+    if not track_dl_dir.exists() or not track_dl_dir.is_dir():
+        raise HTTPException(
+            status_code=404,
+            detail=f"Source audio directory not found for track '{track_id}'",
+        )
+
+    audio_candidates = [
+        track_dl_dir / "audio.wav",
+        track_dl_dir / "audio.mp3",
+        track_dl_dir / "audio.flac",
+        track_dl_dir / "audio.ogg",
+        track_dl_dir / "audio.m4a",
+        track_dl_dir / "raw_audio.wav",
+    ]
+
+    matched_audio: Optional[Path] = None
+    for cand in audio_candidates:
+        if cand.exists() and cand.is_file() and cand.stat().st_size > 0:
+            matched_audio = cand
+            break
+
+    if not matched_audio:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Source audio file not found for track '{track_id}'",
+        )
+
+    ext = matched_audio.suffix.lower()
+    media_type_map = {
+        ".wav": "audio/wav",
+        ".mp3": "audio/mpeg",
+        ".flac": "audio/flac",
+        ".ogg": "audio/ogg",
+        ".m4a": "audio/mp4",
+    }
+    media_type = media_type_map.get(ext, "audio/wav")
+
+    return FileResponse(
+        path=matched_audio,
+        media_type=media_type,
+        filename=f"{track_id}_source{ext}",
+        headers={"Accept-Ranges": "bytes"},
+    )
+

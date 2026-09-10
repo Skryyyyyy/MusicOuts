@@ -18,6 +18,7 @@ import { VirtualSynth } from "./VirtualSynth";
 import { StudioGuideModal } from "./StudioGuideModal";
 import { FxRackView } from "./views/FxRackView";
 import { CapturePerformanceModal } from "./CapturePerformanceModal";
+import { KeyframeLaneOverlay } from "./KeyframeLaneOverlay";
 import { StemType, StemState, GestureState, TrackMetadata, DEFAULT_FX_RACK_STATE } from '../types';
 import { DEFAULT_GESTURE_STATE } from '../engine/gestureTracker';
 
@@ -205,7 +206,8 @@ describe('UI Studio Deck Components', () => {
 
       expect(html).toContain('Demucs Neural Stem Ingestion');
       expect(html).toContain('Paste YouTube music or video URL...');
-      expect(html).toContain('Demix Stems');
+      expect(html).toContain('Pick Timeline Range');
+      expect(html).toContain('Demix Full');
       expect(html).toMatch(/Drag &amp; drop audio file/);
       expect(html).toContain('Synthwave Cyber Anthem');
       expect(html).toContain('Future Bass Drop');
@@ -296,6 +298,10 @@ describe('UI Studio Deck Components', () => {
           onDuckingToggle: vi.fn(),
           onMasterVolumeChange: vi.fn(),
           onDjFilterChange: vi.fn(),
+          canUndo: true,
+          canRedo: true,
+          onUndo: vi.fn(),
+          onRedo: vi.fn(),
         })
       );
 
@@ -304,6 +310,8 @@ describe('UI Studio Deck Components', () => {
       expect(html).toContain('PLAY');
       expect(html).toContain('CUDA');
       expect(html).toContain('DUCK:');
+      expect(html).toContain('UNDO');
+      expect(html).toContain('REDO');
     });
   });
 
@@ -323,6 +331,8 @@ describe('UI Studio Deck Components', () => {
           onStemMuteToggle: vi.fn(),
           onStemSoloToggle: vi.fn(),
           onStemPanChange: vi.fn(),
+          onResetStemKeyframes: vi.fn(),
+          onResetAllKeyframes: vi.fn(),
         })
       );
 
@@ -333,6 +343,11 @@ describe('UI Studio Deck Components', () => {
       expect(html).toContain('04 OTHER [SYNTH &amp; INST]');
       expect(html).toContain('CH 01 • STEREO BUS');
       expect(html).toContain('CH 02 • STEREO BUS');
+      expect(html).toContain('H-ZOOM:');
+      expect(html).toContain('RESET ALL KF');
+      expect(html).toContain('RESET KF');
+      expect(html).toContain('cursor-col-resize');
+      expect(html).toContain('cursor-row-resize');
     });
   });
 
@@ -524,6 +539,121 @@ describe('UI Studio Deck Components', () => {
       expect(html).toContain("42");
       expect(html).toContain("Playback Take");
       expect(html).toContain("Save Performance");
+    });
+  });
+
+  describe('KeyframeLaneOverlay & Adobe Keyframing', () => {
+    it('renders Adobe keyframe diamonds and rubber band SVG path', () => {
+      const html = renderToString(
+        React.createElement(KeyframeLaneOverlay, {
+          target: 'vocals.volume',
+          points: [
+            { id: 'kf-1', time: 10, target: 'vocals.volume', value: 0.5, curve: 'bezier' },
+            { id: 'kf-2', time: 30, target: 'vocals.volume', value: 1.2, curve: 'linear' },
+            { id: 'kf-3', time: 60, target: 'vocals.volume', value: 0.8, curve: 'hold' },
+          ],
+          duration: 120,
+          currentTime: 10,
+          onAddPoint: vi.fn(),
+          onUpdatePoint: vi.fn(),
+          onDeletePoint: vi.fn(),
+        })
+      );
+
+      expect(html).toContain('Adobe Keyframe Automation Lane');
+      expect(html).toContain('<svg');
+      expect(html).toContain('rotate-45'); // Adobe diamond rotation
+      expect(html).toContain('grad-vocals_volume'); // Gradient shader
+      expect(html).toContain('C 126.66'); // Adobe Bezier cubic curve segment in SVG path
+      expect(html).toContain('bg-cyan-300'); // Inner Bezier indicator dot
+      expect(html).toContain('bg-purple-400'); // Inner Hold indicator dot
+    });
+
+    it('ArrangementView renders Adobe keyframe navigator buttons and parameter selector when showAutomation is true', () => {
+      const html = renderToString(
+        React.createElement(ArrangementView, {
+          audioGraph: null,
+          trackMetadata: MOCK_TRACK,
+          currentTime: 10,
+          duration: 180,
+          isPlaying: false,
+          isLooping: false,
+          stemStates: MOCK_STEM_STATES,
+          showAutomation: true,
+          automationPoints: [
+            { id: 'kf-voc-1', time: 10, target: 'vocals.volume', value: 1.0, curve: 'bezier' },
+          ],
+          onSeek: vi.fn(),
+          onStemVolumeChange: vi.fn(),
+          onStemMuteToggle: vi.fn(),
+          onStemSoloToggle: vi.fn(),
+          onStemPanChange: vi.fn(),
+        })
+      );
+
+      expect(html).toContain('Vol (Level)');
+      expect(html).toContain('BEZ'); // Bezier easing pill
+      expect(html).toContain('Adobe Keyframe Automation Lane');
+    });
+
+    it('ArrangementView renders Stem & Clip Reversal and Arrangement Reverb Controls', () => {
+      const html = renderToString(
+        React.createElement(ArrangementView, {
+          audioGraph: null,
+          trackMetadata: MOCK_TRACK,
+          currentTime: 10,
+          duration: 180,
+          isPlaying: false,
+          isLooping: false,
+          stemStates: MOCK_STEM_STATES,
+          fxRackState: DEFAULT_FX_RACK_STATE,
+          clips: [
+            {
+              id: 'clip-test-1',
+              name: 'Lead Vocals Slice',
+              songId: 'song-1',
+              songTitle: 'Test Song',
+              stem: 'vocals',
+              startTime: 10,
+              sourceOffset: 0,
+              duration: 30,
+              gain: 1,
+              muted: false,
+              isReversed: true,
+            },
+          ],
+          onSeek: vi.fn(),
+          onStemVolumeChange: vi.fn(),
+          onStemMuteToggle: vi.fn(),
+          onStemSoloToggle: vi.fn(),
+          onStemPanChange: vi.fn(),
+          onToggleReverseStem: vi.fn(),
+          onToggleReverseClip: vi.fn(),
+          onReverseAllStems: vi.fn(),
+          onStemReverbChange: vi.fn(),
+          onStemReverbPresetChange: vi.fn(),
+          onStemReverbToggle: vi.fn(),
+          canUndo: true,
+          canRedo: true,
+          onUndo: vi.fn(),
+          onRedo: vi.fn(),
+        })
+      );
+
+      // Verify Reverse All Stems button
+      expect(html).toContain('⇄ REV ALL');
+      // Verify Stem reverse toggle
+      expect(html).toContain('⇄ REV');
+      // Verify Undo / Redo toolbar buttons
+      expect(html).toContain('↶ UNDO');
+      expect(html).toContain('↷ REDO');
+      // Verify Stem Reverb strip
+      expect(html).toContain('REV');
+      expect(html).toContain('WET');
+      expect(html).toContain('Hall');
+      expect(html).toContain('Plate');
+      expect(html).toContain('Cathedral');
+      expect(html).toContain('Rev Swell');
     });
   });
 });

@@ -13,11 +13,14 @@ import {
   DEFAULT_FX_RACK_STATE,
   PerformanceSession,
   MusicOutsProject,
+  AutomationPoint,
+  ReverbPresetType,
 } from "./types";
 import { AudioGraphEngine } from "./engine/audioGraph";
 import { GestureTracker, DEFAULT_GESTURE_STATE } from "./engine/gestureTracker";
 import { AutomationManager, PerformanceCaptureTracker } from "./engine/automationEngine";
 import { saveProjectToFile, loadProjectFromFile } from "./engine/projectManager";
+import { HistoryManager, HistoryStatePayload } from "./engine/historyManager";
 
 import { DawTransport } from "./components/DawTransport";
 import { ArrangementView } from "./components/ArrangementView";
@@ -43,9 +46,90 @@ export const App: React.FC = () => {
   const [mode, setMode] = useState<StudioMode>("producer");
   const [isGuideOpen, setIsGuideOpen] = useState<boolean>(false);
   const [isFooterCollapsed, setIsFooterCollapsed] = useState<boolean>(false);
+  const [isInspectorOpen, setIsInspectorOpen] = useState<boolean>(true);
+  const [isMediaBayOpen, setIsMediaBayOpen] = useState<boolean>(false);
   const [showSynth, setShowSynth] = useState<boolean>(false);
   const [showAutomation, setShowAutomation] = useState<boolean>(true);
   const [selectedStem, setSelectedStem] = useState<StemType>("vocals");
+
+  // Interactive Layout Panel Resizing State
+  const [inspectorWidth, setInspectorWidth] = useState<number>(256);
+  const [mediaBayWidth, setMediaBayWidth] = useState<number>(280);
+  const [dockHeight, setDockHeight] = useState<number>(280);
+  const [isResizingInspector, setIsResizingInspector] = useState<boolean>(false);
+  const [isResizingMediaBay, setIsResizingMediaBay] = useState<boolean>(false);
+  const [isResizingDock, setIsResizingDock] = useState<boolean>(false);
+
+  // Mouse drag handler for Left Inspector width
+  const handleInspectorResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizingInspector(true);
+    const startX = e.clientX;
+    const startWidth = inspectorWidth;
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const delta = moveEvent.clientX - startX;
+      const newWidth = Math.min(Math.max(180, startWidth + delta), 480);
+      setInspectorWidth(newWidth);
+    };
+
+    const onMouseUp = () => {
+      setIsResizingInspector(false);
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+  };
+
+  // Mouse drag handler for Right MediaBay width
+  const handleMediaBayResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizingMediaBay(true);
+    const startX = e.clientX;
+    const startWidth = mediaBayWidth;
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const delta = startX - moveEvent.clientX;
+      const newWidth = Math.min(Math.max(200, startWidth + delta), 500);
+      setMediaBayWidth(newWidth);
+    };
+
+    const onMouseUp = () => {
+      setIsResizingMediaBay(false);
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+  };
+
+  // Mouse drag handler for Bottom MixConsole Dock height
+  const handleDockResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizingDock(true);
+    const startY = e.clientY;
+    const startHeight = dockHeight;
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const delta = startY - moveEvent.clientY;
+      const maxHeight = Math.round(window.innerHeight * 0.65);
+      const newHeight = Math.min(Math.max(120, startHeight + delta), maxHeight);
+      setDockHeight(newHeight);
+      setIsFooterCollapsed(false);
+    };
+
+    const onMouseUp = () => {
+      setIsResizingDock(false);
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+  };
 
   // Real Hardware Detection State
   const [hardwareInfo, setHardwareInfo] = useState<HardwareInfo | null>(null);
@@ -56,6 +140,7 @@ export const App: React.FC = () => {
   const automationManagerRef = useRef<AutomationManager>(new AutomationManager());
   const performanceTrackerRef = useRef<PerformanceCaptureTracker>(new PerformanceCaptureTracker());
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const lastGestureUiUpdateRef = useRef<number>(0);
 
   // Studio State
   const [trackMetadata, setTrackMetadata] = useState<TrackMetadata | null>(null);
@@ -81,6 +166,9 @@ export const App: React.FC = () => {
   const [isRecordingAutomation, setIsRecordingAutomation] = useState<boolean>(false);
   const [isCapturingPerformance, setIsCapturingPerformance] = useState<boolean>(false);
   const [captureSession, setCaptureSession] = useState<PerformanceSession | null>(null);
+  const [automationPoints, setAutomationPoints] = useState<AutomationPoint[]>(() =>
+    automationManagerRef.current.getPoints()
+  );
 
   // DJ Filter State
   const [djFilterCutoff, setDjFilterCutoff] = useState<number>(20000);
@@ -140,6 +228,7 @@ export const App: React.FC = () => {
   // Real-time animation playback clock, auto-ducking loop, and automation evaluation
   useEffect(() => {
     let animId: number;
+    let lastClockUpdate = 0;
 
     const tick = () => {
       const audioGraph = audioGraphRef.current;
@@ -147,10 +236,18 @@ export const App: React.FC = () => {
         if (audioGraph.isPlaying()) {
           const t = audioGraph.getCurrentTime();
           setCurrentTime(t);
-          setDuration(audioGraph.getDuration() || 180);
 
-          const reduction = audioGraph.updateSidechainDucking();
-          setDuckingReduction(reduction);
+          const gDuration = audioGraph.getDuration();
+          if (gDuration > 0) {
+            setDuration((prev) => (Math.abs(prev - gDuration) > 0.5 ? gDuration : prev));
+          }
+
+          const now = performance.now();
+          if (now - lastClockUpdate >= 50) {
+            lastClockUpdate = now;
+            const reduction = audioGraph.updateSidechainDucking();
+            setDuckingReduction((prev) => (Math.abs(prev - reduction) > 0.02 ? reduction : prev));
+          }
 
           // Apply Automation Playback if not currently recording
           if (!isRecordingAutomation && showAutomation) {
@@ -173,13 +270,12 @@ export const App: React.FC = () => {
   // Handle gesture telemetry frame updates and apply dynamic audio modulation & automation recording
   const handleGestureStateChange = useCallback(
     (state: GestureState) => {
-      setGestureState(state);
       const audioGraph = audioGraphRef.current;
       if (!audioGraph) return;
 
       const t = audioGraph.getCurrentTime();
 
-      // 1. Dual Fist Kill Switch (with 350ms hold delay)
+      // 1. Dual Fist Kill Switch (with 200ms hold delay) - Immediate Audio DSP
       if (state.isDualFist) {
         audioGraph.setMasterVolume(0.0, 0.02);
         if (isRecordingAutomation) {
@@ -188,26 +284,16 @@ export const App: React.FC = () => {
         if (isCapturingPerformance) {
           performanceTrackerRef.current.logEvent(t, "gesture", { killSwitch: true });
         }
-        return;
       } else {
-        audioGraph.setMasterVolume(masterVolume, 0.05);
+        audioGraph.setMasterVolume(masterVolume, 0.03);
       }
 
-      // 2. Left Hand Modulation (Vocals Level & Solo/Mute)
+      // 2. Left Hand Modulation (Vocals Level & Solo/Mute) - Immediate Audio DSP
       if (state.leftHand.present) {
         const vocalVol = state.leftHand.height;
-        audioGraph.setStemVolume("vocals", vocalVol, 0.04);
-        setStems((prev) => ({
-          ...prev,
-          vocals: {
-            ...prev.vocals,
-            volume: vocalVol,
-            solo: state.leftHand.isPinching,
-            muted: state.leftHand.isFist,
-          },
-        }));
-        audioGraph.setStemSolo("vocals", state.leftHand.isPinching, 0.04);
-        audioGraph.setStemMute("vocals", state.leftHand.isFist, 0.04);
+        audioGraph.setStemVolume("vocals", vocalVol, 0.02);
+        audioGraph.setStemSolo("vocals", state.leftHand.isPinching, 0.02);
+        audioGraph.setStemMute("vocals", state.leftHand.isFist, 0.02);
 
         if (isRecordingAutomation) {
           automationManagerRef.current.recordPoint(t, "vocals.volume", vocalVol);
@@ -222,18 +308,11 @@ export const App: React.FC = () => {
         }
       }
 
-      // 3. Right Hand Modulation (Instruments Level & DJ Filter Sweep)
+      // 3. Right Hand Modulation (Instruments Level & DJ Filter Sweep) - Immediate Audio DSP
       if (state.rightHand.present) {
         const otherVol = state.rightHand.height;
-        audioGraph.setStemVolume("other", otherVol, 0.04);
-        setStems((prev) => ({
-          ...prev,
-          other: { ...prev.other, volume: otherVol },
-        }));
-
-        setDjFilterCutoff(state.djFilterCutoff);
-        setDjFilterType(state.djFilterType);
-        audioGraph.setDjFilter(state.djFilterCutoff, state.djFilterType, djFilterQ, 0.04);
+        audioGraph.setStemVolume("other", otherVol, 0.02);
+        audioGraph.setDjFilter(state.djFilterCutoff, state.djFilterType, djFilterQ, 0.02);
 
         if (isRecordingAutomation) {
           automationManagerRef.current.recordPoint(t, "other.volume", otherVol);
@@ -248,6 +327,36 @@ export const App: React.FC = () => {
           });
         }
       }
+
+      // 4. Throttle React State updates to ~30 FPS (33ms) so React does NOT choke the main thread
+      const now = performance.now();
+      if (now - lastGestureUiUpdateRef.current >= 33) {
+        lastGestureUiUpdateRef.current = now;
+        setGestureState(state);
+
+        if (state.leftHand.present) {
+          const vocalVol = state.leftHand.height;
+          setStems((prev) => ({
+            ...prev,
+            vocals: {
+              ...prev.vocals,
+              volume: vocalVol,
+              solo: state.leftHand.isPinching,
+              muted: state.leftHand.isFist,
+            },
+          }));
+        }
+
+        if (state.rightHand.present) {
+          const otherVol = state.rightHand.height;
+          setStems((prev) => ({
+            ...prev,
+            other: { ...prev.other, volume: otherVol },
+          }));
+          setDjFilterCutoff(state.djFilterCutoff);
+          setDjFilterType(state.djFilterType);
+        }
+      }
     },
     [masterVolume, djFilterQ, isRecordingAutomation, isCapturingPerformance]
   );
@@ -255,26 +364,11 @@ export const App: React.FC = () => {
   // Track Ingestion Handler (Demucs AI finishes separation)
   const handleTrackLoaded = async (loadedTrack: TrackMetadata) => {
     setTrackMetadata(loadedTrack);
-    setDuration(loadedTrack.duration);
+    setDuration(loadedTrack.duration > 0 ? loadedTrack.duration : 180);
     setIsLoadingStems(true);
 
     const songColors = ["#00bcd4", "#ff7043", "#ab47bc", "#4caf50", "#e91e63", "#ffeb3b"];
     const songColor = songColors[songs.length % songColors.length];
-
-    const newSong: import("./types").SongItem = {
-      id: loadedTrack.id,
-      title: loadedTrack.title,
-      duration: loadedTrack.duration,
-      stems: loadedTrack.stems,
-      color: songColor,
-      bpm: 120,
-      key: "A minor",
-    };
-
-    setSongs((prev) => {
-      const exists = prev.some((s) => s.id === newSong.id);
-      return exists ? prev : [...prev, newSong];
-    });
 
     const audioGraph = audioGraphRef.current;
     if (audioGraph) {
@@ -282,7 +376,25 @@ export const App: React.FC = () => {
         await audioGraph.loadSongStems(loadedTrack.id, loadedTrack.stems);
         await audioGraph.loadStems(loadedTrack.id, loadedTrack.stems);
 
-        // Generate 4 initial track clips if no clips exist or append them
+        const realDuration = audioGraph.getDuration() > 0 ? audioGraph.getDuration() : (loadedTrack.duration > 0 ? loadedTrack.duration : 180);
+        setDuration(realDuration);
+
+        const newSong: import("./types").SongItem = {
+          id: loadedTrack.id,
+          title: loadedTrack.title,
+          duration: realDuration,
+          stems: loadedTrack.stems,
+          color: songColor,
+          bpm: 120,
+          key: "A minor",
+        };
+
+        setSongs((prev) => {
+          const exists = prev.some((s) => s.id === newSong.id);
+          return exists ? prev : [...prev, newSong];
+        });
+
+        // Generate 4 initial track clips using accurate decoded duration
         const newClips: import("./types").AudioClip[] = STEM_TYPES.map((stem) => ({
           id: `clip_${loadedTrack.id}_${stem}_${Date.now()}_${Math.random().toString(36).substring(2, 5)}`,
           songId: loadedTrack.id,
@@ -290,7 +402,7 @@ export const App: React.FC = () => {
           stem,
           startTime: 0,
           sourceOffset: 0,
-          duration: loadedTrack.duration,
+          duration: realDuration,
           gain: 1.0,
           muted: false,
           name: `${loadedTrack.title.substring(0, 14)} [${stem.toUpperCase()}]`,
@@ -326,10 +438,111 @@ export const App: React.FC = () => {
     }
   };
 
+  // Professional DAW Undo / Redo History Engine
+  const historyManagerRef = useRef<HistoryManager>(
+    new HistoryManager({
+      stems: INITIAL_STEM_STATES,
+      fxRack: DEFAULT_FX_RACK_STATE,
+      clips: [],
+      automationPoints: [],
+      masterVolume: 1.0,
+      djFilterCutoff: 20000,
+      djFilterType: "lowpass",
+    })
+  );
+  const [canUndo, setCanUndo] = useState<boolean>(false);
+  const [canRedo, setCanRedo] = useState<boolean>(false);
+  const lastSliderHistoryRecordRef = useRef<number>(0);
+
+  const syncHistoryFlags = useCallback(() => {
+    setCanUndo(historyManagerRef.current.canUndo());
+    setCanRedo(historyManagerRef.current.canRedo());
+  }, []);
+
+  const recordHistory = useCallback(
+    (description: string, customPartial?: Partial<HistoryStatePayload>) => {
+      const payload: HistoryStatePayload = {
+        stems,
+        fxRack: fxRackState,
+        clips,
+        automationPoints,
+        masterVolume,
+        djFilterCutoff,
+        djFilterType,
+        ...customPartial,
+      };
+      historyManagerRef.current.pushState(description, payload);
+      syncHistoryFlags();
+    },
+    [stems, fxRackState, clips, automationPoints, masterVolume, djFilterCutoff, djFilterType, syncHistoryFlags]
+  );
+
+  const recordContinuousSliderHistory = useCallback(
+    (description: string, customPartial?: Partial<HistoryStatePayload>) => {
+      const now = Date.now();
+      if (now - lastSliderHistoryRecordRef.current > 500) {
+        recordHistory(description, customPartial);
+        lastSliderHistoryRecordRef.current = now;
+      }
+    },
+    [recordHistory]
+  );
+
+  const applyHistoryState = useCallback(
+    (payload: HistoryStatePayload) => {
+      setStems(payload.stems);
+      setFxRackState(payload.fxRack);
+      setClips(payload.clips);
+      setAutomationPoints(payload.automationPoints);
+      setMasterVolume(payload.masterVolume);
+      setDjFilterCutoff(payload.djFilterCutoff);
+      setDjFilterType(payload.djFilterType);
+
+      // Re-apply to audio graph engine
+      const audioGraph = audioGraphRef.current;
+      if (audioGraph) {
+        for (const s of STEM_TYPES) {
+          if (payload.stems[s]) {
+            audioGraph.setStemVolume(s, payload.stems[s].volume);
+            audioGraph.setStemPan(s, payload.stems[s].pan);
+            audioGraph.setStemMute(s, payload.stems[s].muted);
+            audioGraph.setStemSolo(s, payload.stems[s].solo);
+          }
+          if (payload.fxRack[s]) {
+            audioGraph.setStemFxRackState(s, payload.fxRack[s]);
+          }
+        }
+        audioGraph.setMasterVolume(payload.masterVolume);
+        audioGraph.setDjFilter(payload.djFilterCutoff, payload.djFilterType, djFilterQ);
+        audioGraph.setClips(payload.clips);
+      }
+
+      automationManagerRef.current.setPoints(payload.automationPoints);
+    },
+    [djFilterQ]
+  );
+
+  const handleUndo = useCallback(() => {
+    const entry = historyManagerRef.current.undo();
+    if (entry) {
+      applyHistoryState(entry.state);
+      syncHistoryFlags();
+    }
+  }, [applyHistoryState, syncHistoryFlags]);
+
+  const handleRedo = useCallback(() => {
+    const entry = historyManagerRef.current.redo();
+    if (entry) {
+      applyHistoryState(entry.state);
+      syncHistoryFlags();
+    }
+  }, [applyHistoryState, syncHistoryFlags]);
+
   // DAW Audio Clip Manipulation Handlers
   const handleSliceClip = (clipId: string, time: number) => {
     const audioGraph = audioGraphRef.current;
     if (!audioGraph) return;
+    recordHistory("Split Audio Clip");
     const res = audioGraph.sliceClip(clipId, time);
     if (res) {
       setClips([...audioGraph.getClips()]);
@@ -339,6 +552,7 @@ export const App: React.FC = () => {
   const handleTrimClip = (clipId: string, newStartOffset: number, newDuration: number) => {
     const audioGraph = audioGraphRef.current;
     if (!audioGraph) return;
+    recordHistory("Trim Audio Clip");
     audioGraph.trimClip(clipId, newStartOffset, newDuration);
     setClips([...audioGraph.getClips()]);
   };
@@ -346,6 +560,7 @@ export const App: React.FC = () => {
   const handleMoveClip = (clipId: string, newStartTime: number) => {
     const audioGraph = audioGraphRef.current;
     if (!audioGraph) return;
+    recordHistory("Move Audio Clip");
     audioGraph.moveClip(clipId, newStartTime);
     setClips([...audioGraph.getClips()]);
   };
@@ -353,6 +568,7 @@ export const App: React.FC = () => {
   const handleDuplicateClip = (clipId: string) => {
     const audioGraph = audioGraphRef.current;
     if (!audioGraph) return;
+    recordHistory("Duplicate Audio Clip");
     const dup = audioGraph.duplicateClip(clipId);
     if (dup) {
       setClips([...audioGraph.getClips()]);
@@ -362,6 +578,7 @@ export const App: React.FC = () => {
   const handleDeleteClip = (clipId: string) => {
     const audioGraph = audioGraphRef.current;
     if (!audioGraph) return;
+    recordHistory("Delete Audio Clip");
     audioGraph.deleteClip(clipId);
     setClips([...audioGraph.getClips()]);
   };
@@ -370,6 +587,7 @@ export const App: React.FC = () => {
     const targetSong = songs.find((s) => s.id === songId);
     if (!targetSong) return;
 
+    recordHistory("Add Clip to Arrangement");
     const audioGraph = audioGraphRef.current;
     const playheadTime = audioGraph ? audioGraph.getCurrentTime() : currentTime;
 
@@ -391,6 +609,62 @@ export const App: React.FC = () => {
       const updated = [...prev, newClip];
       audioGraphRef.current?.setClips(updated);
       return updated;
+    });
+  };
+
+  // Stem & Clip Reversal Handlers
+  const handleToggleReverseClip = (clipId: string) => {
+    recordHistory("Reverse Clip Audio");
+    const audioGraph = audioGraphRef.current;
+    if (audioGraph) {
+      audioGraph.toggleReverseClip(clipId);
+    }
+    setClips((prev) =>
+      prev.map((c) => (c.id === clipId ? { ...c, isReversed: !c.isReversed } : c))
+    );
+  };
+
+  const handleToggleReverseStem = (stem: StemType) => {
+    recordHistory(`Toggle ${stem.toUpperCase()} Reverse`);
+    audioGraphRef.current?.toggleReverseStem(stem);
+  };
+
+  const handleReverseAllStems = () => {
+    recordHistory("Reverse All Stems");
+    audioGraphRef.current?.reverseAllStems();
+  };
+
+  // Reverb Handlers
+  const handleStemReverbChange = (stem: StemType, mix: number) => {
+    recordContinuousSliderHistory(`Adjust ${stem.toUpperCase()} Reverb Mix`);
+    setFxRackState((prev) => {
+      const cur = prev[stem];
+      const updatedRev = { ...cur.reverb, mix, enabled: true };
+      const updated = { ...cur, reverb: updatedRev };
+      audioGraphRef.current?.setStemReverb(stem, updatedRev);
+      return { ...prev, [stem]: updated };
+    });
+  };
+
+  const handleStemReverbPresetChange = (stem: StemType, preset: ReverbPresetType) => {
+    recordHistory(`Change ${stem.toUpperCase()} Reverb Preset`);
+    setFxRackState((prev) => {
+      const cur = prev[stem];
+      const updatedRev = { ...cur.reverb, preset, enabled: true };
+      const updated = { ...cur, reverb: updatedRev };
+      audioGraphRef.current?.setStemReverb(stem, updatedRev);
+      return { ...prev, [stem]: updated };
+    });
+  };
+
+  const handleStemReverbToggle = (stem: StemType) => {
+    recordHistory(`Toggle ${stem.toUpperCase()} Reverb`);
+    setFxRackState((prev) => {
+      const cur = prev[stem];
+      const updatedRev = { ...cur.reverb, enabled: !cur.reverb.enabled };
+      const updated = { ...cur, reverb: updatedRev };
+      audioGraphRef.current?.setStemReverb(stem, updatedRev);
+      return { ...prev, [stem]: updated };
     });
   };
 
@@ -465,6 +739,7 @@ export const App: React.FC = () => {
 
   // Mixer Deck Handlers
   const handleStemVolumeChange = (stem: StemType, val: number) => {
+    recordContinuousSliderHistory(`Adjust ${stem.toUpperCase()} Volume`);
     setStems((prev) => ({
       ...prev,
       [stem]: { ...prev[stem], volume: val },
@@ -482,6 +757,7 @@ export const App: React.FC = () => {
   };
 
   const handleStemPanChange = (stem: StemType, pan: number) => {
+    recordContinuousSliderHistory(`Adjust ${stem.toUpperCase()} Pan`);
     setStems((prev) => ({
       ...prev,
       [stem]: { ...prev[stem], pan },
@@ -495,6 +771,7 @@ export const App: React.FC = () => {
   };
 
   const handleStemMuteToggle = (stem: StemType) => {
+    recordHistory(`Toggle ${stem.toUpperCase()} Mute`);
     setStems((prev) => {
       const nextMuted = !prev[stem].muted;
       audioGraphRef.current?.setStemMute(stem, nextMuted);
@@ -506,6 +783,7 @@ export const App: React.FC = () => {
   };
 
   const handleStemSoloToggle = (stem: StemType) => {
+    recordHistory(`Toggle ${stem.toUpperCase()} Solo`);
     setStems((prev) => {
       const nextSolo = !prev[stem].solo;
       audioGraphRef.current?.setStemSolo(stem, nextSolo);
@@ -517,11 +795,13 @@ export const App: React.FC = () => {
   };
 
   const handleMasterVolumeChange = (vol: number) => {
+    recordContinuousSliderHistory("Adjust Master Volume");
     setMasterVolume(vol);
     audioGraphRef.current?.setMasterVolume(vol);
   };
 
   const handleDjFilterChange = (cutoff: number, type: "lowpass" | "highpass", q: number = djFilterQ) => {
+    recordContinuousSliderHistory("Adjust DJ Filter");
     setDjFilterCutoff(cutoff);
     setDjFilterType(type);
     setDjFilterQ(q);
@@ -539,6 +819,7 @@ export const App: React.FC = () => {
 
   // FX Rack Change Handler
   const handleStemFxChange = (stem: StemType, newFxState: typeof DEFAULT_FX_RACK_STATE['vocals']) => {
+    recordHistory(`Update ${stem.toUpperCase()} FX Rack`);
     setFxRackState((prev) => ({
       ...prev,
       [stem]: newFxState,
@@ -549,11 +830,55 @@ export const App: React.FC = () => {
     }
   };
 
+  // Keyframe Management Callbacks (Adobe Premiere-Style)
+  const handleAddKeyframe = useCallback((point: AutomationPoint) => {
+    recordHistory("Add Automation Keyframe");
+    automationManagerRef.current.addPoint(point);
+    setAutomationPoints(automationManagerRef.current.getPoints());
+  }, [recordHistory]);
+
+  const handleUpdateKeyframe = useCallback((pointId: string, updates: Partial<AutomationPoint>) => {
+    recordHistory("Update Automation Keyframe");
+    automationManagerRef.current.updatePoint(pointId, updates);
+    setAutomationPoints(automationManagerRef.current.getPoints());
+  }, [recordHistory]);
+
+  const handleDeleteKeyframe = useCallback((pointId: string) => {
+    recordHistory("Delete Automation Keyframe");
+    automationManagerRef.current.deletePoint(pointId);
+    setAutomationPoints(automationManagerRef.current.getPoints());
+  }, [recordHistory]);
+
+  const handleResetStemKeyframes = useCallback(
+    (stem: StemType, param?: string) => {
+      recordHistory(`Reset ${stem.toUpperCase()} Keyframes`);
+      if (param) {
+        automationManagerRef.current.clearTarget(`${stem}.${param}`);
+      } else {
+        const remaining = automationManagerRef.current
+          .getPoints()
+          .filter((p) => !p.target.startsWith(`${stem}.`));
+        automationManagerRef.current.setPoints(remaining);
+      }
+      setAutomationPoints(automationManagerRef.current.getPoints());
+    },
+    [recordHistory]
+  );
+
+  const handleResetAllKeyframes = useCallback(() => {
+    recordHistory("Reset All Keyframes");
+    automationManagerRef.current.clearAll();
+    setAutomationPoints([]);
+  }, [recordHistory]);
+
   // Automation Recording Toggle
   const handleToggleRecordAutomation = () => {
     const nextRec = !isRecordingAutomation;
     setIsRecordingAutomation(nextRec);
     automationManagerRef.current.setRecording(nextRec);
+    if (!nextRec) {
+      setAutomationPoints(automationManagerRef.current.getPoints());
+    }
   };
 
   // Performance Capture Toggle
@@ -629,7 +954,10 @@ export const App: React.FC = () => {
       if (project.djFilterCutoff !== undefined) setDjFilterCutoff(project.djFilterCutoff);
       if (project.djFilterType) setDjFilterType(project.djFilterType);
       if (project.mode) setMode(project.mode);
-      if (project.automation) automationManagerRef.current.setPoints(project.automation);
+      if (project.automation) {
+        automationManagerRef.current.setPoints(project.automation);
+        setAutomationPoints(automationManagerRef.current.getPoints());
+      }
 
       alert(`Loaded Project "${project.title}" successfully!`);
     } catch (err) {
@@ -644,6 +972,7 @@ export const App: React.FC = () => {
     setCaptureSession(null);
     if (session.projectSnapshot?.automation) {
       automationManagerRef.current.setPoints(session.projectSnapshot.automation);
+      setAutomationPoints(automationManagerRef.current.getPoints());
     }
     handleSeek(0);
     if (!isPlaying) {
@@ -659,6 +988,24 @@ export const App: React.FC = () => {
         document.activeElement?.tagName === "TEXTAREA"
       ) {
         return;
+      }
+
+      // Undo / Redo Shortcuts (Ctrl+Z, Ctrl+Shift+Z, Ctrl+Y)
+      if (e.ctrlKey || e.metaKey) {
+        if (e.key === "z" || e.key === "Z") {
+          e.preventDefault();
+          if (e.shiftKey) {
+            handleRedo();
+          } else {
+            handleUndo();
+          }
+          return;
+        }
+        if (e.key === "y" || e.key === "Y") {
+          e.preventDefault();
+          handleRedo();
+          return;
+        }
       }
 
       switch (e.key) {
@@ -698,7 +1045,7 @@ export const App: React.FC = () => {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isPlaying, isReadyCheck(), isLooping, trackMetadata]);
+  }, [isPlaying, isReadyCheck(), isLooping, trackMetadata, handleUndo, handleRedo]);
 
   function isReadyCheck() {
     return trackMetadata !== null && !isLoadingStems && processStatus.stage !== "downloading" && processStatus.stage !== "separating";
@@ -872,410 +1219,590 @@ export const App: React.FC = () => {
         onDuckingToggle={handleDuckingToggle}
         onMasterVolumeChange={handleMasterVolumeChange}
         onDjFilterChange={handleDjFilterChange}
+        canUndo={canUndo}
+        canRedo={canRedo}
+        onUndo={handleUndo}
+        onRedo={handleRedo}
+        isInspectorOpen={isInspectorOpen}
+        isMediaBayOpen={isMediaBayOpen}
+        isFooterCollapsed={isFooterCollapsed}
+        onToggleInspector={currentView === "arrangement" ? () => setIsInspectorOpen(!isInspectorOpen) : undefined}
+        onToggleMediaBay={() => setIsMediaBayOpen(!isMediaBayOpen)}
+        onToggleFooter={currentView === "arrangement" ? () => setIsFooterCollapsed(!isFooterCollapsed) : undefined}
       />
 
       {/* 3. Main Studio Workspace Area */}
-      <main className="relative pl-channel-w-standard pt-[92px] w-full h-screen bg-surface flex flex-col overflow-hidden">
+      <main
+        className={`relative pl-channel-w-standard pt-[92px] w-full h-screen bg-surface flex flex-col overflow-hidden ${
+          isResizingInspector || isResizingMediaBay
+            ? "cursor-col-resize select-none"
+            : isResizingDock
+            ? "cursor-row-resize select-none"
+            : ""
+        }`}
+      >
         {/* Dynamic Workspace View Container */}
         <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
           {showSynth && (
-            <div className="p-2 bg-surface-container-low border-b border-surface-container-highest shrink-0">
-              <VirtualSynth audioGraph={audioGraphRef.current} />
+            <div className="p-2 bg-surface-container-low border-b border-surface-container-highest shrink-0 select-none">
+              <div className="flex items-center justify-between pb-1 mb-1 border-b border-surface-container-highest/60 font-mono text-[10px] text-on-surface-variant">
+                <span className="flex items-center gap-1 font-bold text-on-surface">
+                  <span className="material-symbols-outlined text-[13px] text-primary">piano</span>
+                  Virtual Synthesizer Keyboard
+                </span>
+                <button
+                  onClick={() => setShowSynth(false)}
+                  className="px-1.5 py-0.5 rounded hover:bg-surface-container-high text-on-surface-variant hover:text-on-surface transition-colors"
+                  title="Close Synthesizer Keyboard"
+                >
+                  ✕ Close
+                </button>
+              </div>
+              <VirtualSynth audioGraph={audioGraphRef.current} onClose={() => setShowSynth(false)} />
             </div>
           )}
 
-          {/* Page 1: Multi-track Arrangement Window (3-Column Workspace) */}
-          <div className={`flex-1 h-full ${currentView === "arrangement" ? "block" : "hidden"}`}>
-            <div className="grid grid-cols-12 gap-0 h-full bg-surface-container-lowest overflow-hidden">
-              {/* Left Column: Track Inspector */}
-              <aside className="col-span-3 lg:col-span-2 xl:col-span-2 flex flex-col bg-surface-container-low shadow-[inset_-1px_0_0_rgba(255,255,255,0.05)] overflow-hidden z-20">
-                {/* Inspector Tab Header & Stem Selector */}
-                <div className="h-6 bg-surface-container px-pad-xs flex items-center justify-between border-b border-surface-container-highest font-label-sm text-label-sm shrink-0">
-                  <div className="flex items-center gap-pad-micro">
-                    {(['vocals', 'drums', 'bass', 'other'] as StemType[]).map((s) => (
-                      <button
-                        key={s}
-                        onClick={() => setSelectedStem(s)}
-                        className={`px-1.5 py-0.5 rounded text-[9px] uppercase font-bold transition-all ${
-                          selectedStem === s
-                            ? "bg-primary text-on-primary"
-                            : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high"
-                        }`}
-                      >
-                        {s.slice(0, 3)}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Track Inspector Content (Scrollable) */}
-                <div className="flex-1 overflow-y-auto p-pad-sm flex flex-col gap-pad-sm">
-                  {/* Selected Track Header Card */}
-                  <div className="bg-surface-container p-pad-xs rounded flex flex-col gap-pad-xs border-l-2 border-primary-container">
-                    <div className="flex items-center justify-between">
-                      <span className="font-headline-sm text-headline-sm text-on-surface font-semibold capitalize">
-                        01. {selectedStem} Stem
-                      </span>
-                      <span className="font-label-sm text-label-sm text-primary-container bg-primary-container/10 px-pad-xs rounded">Audio</span>
+          {/* 3-Zone Workspace Layout: Left Inspector (Arrangement only) | Center Active Page | Right MediaBay */}
+          <div className="flex-1 min-h-0 flex h-full bg-surface-container-lowest overflow-hidden">
+            {/* Left Column: Track Inspector (Active exclusively on Arrangement view) */}
+            {currentView === "arrangement" && (
+              <>
+                {isInspectorOpen ? (
+                  <aside
+                    style={{ width: `${inspectorWidth}px` }}
+                    className="flex flex-col bg-surface-container-low border-r border-surface-container-highest shadow-[inset_-1px_0_0_rgba(255,255,255,0.05)] overflow-hidden shrink-0 z-20 select-none transition-[width] duration-75"
+                  >
+                  {/* Inspector Tab Header & Stem Selector & Minimize Button */}
+                  <div className="h-7 bg-surface-container px-2 flex items-center justify-between border-b border-surface-container-highest shrink-0">
+                    <div className="flex items-center gap-1 min-w-0">
+                      <span className="material-symbols-outlined text-[14px] text-primary">tune</span>
+                      <span className="font-mono text-[10px] font-bold text-on-surface tracking-wide">INSPECTOR</span>
                     </div>
-                    <div className="text-[9px] font-mono text-on-surface-variant">In: Stereo L/R • Out: Stereo Out</div>
-                    <div className="flex items-center gap-pad-micro mt-pad-micro">
+                    <div className="flex items-center gap-1 shrink-0">
+                      {(['vocals', 'drums', 'bass', 'other'] as StemType[]).map((s) => (
+                        <button
+                          key={s}
+                          onClick={() => setSelectedStem(s)}
+                          className={`px-1.5 py-0.5 rounded text-[9px] uppercase font-bold font-mono transition-all ${
+                            selectedStem === s
+                              ? "bg-primary text-on-primary shadow-sm"
+                              : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high"
+                          }`}
+                          title={`Inspect ${s}`}
+                        >
+                          {s.slice(0, 3)}
+                        </button>
+                      ))}
                       <button
-                        onClick={() => handleStemMuteToggle(selectedStem)}
-                        className={`w-5 h-5 rounded flex items-center justify-center font-bold text-[9px] ${
-                          stems[selectedStem]?.muted ? "bg-error text-on-error" : "bg-surface-container-highest text-on-surface"
-                        }`}
+                        onClick={() => setIsInspectorOpen(false)}
+                        className="w-5 h-5 flex items-center justify-center rounded hover:bg-surface-container-high text-on-surface-variant hover:text-on-surface transition-colors ml-0.5"
+                        title="Minimize Track Inspector"
                       >
-                        M
+                        <span className="material-symbols-outlined text-[14px]">chevron_left</span>
                       </button>
-                      <button
-                        onClick={() => handleStemSoloToggle(selectedStem)}
-                        className={`w-5 h-5 rounded flex items-center justify-center font-bold text-[9px] ${
-                          stems[selectedStem]?.solo ? "bg-secondary-container text-on-secondary-container font-bold" : "bg-surface-container-highest text-on-surface"
-                        }`}
-                      >
-                        S
-                      </button>
-                      <button className="w-5 h-5 rounded bg-surface-container-highest flex items-center justify-center font-bold text-[9px] text-error">R</button>
-                      <button className="w-5 h-5 rounded bg-surface-container-highest flex items-center justify-center font-bold text-[9px] text-primary">e</button>
-                      <button className="w-5 h-5 rounded bg-surface-container-highest flex items-center justify-center font-bold text-[9px] text-tertiary">R</button>
-                      <button className="w-5 h-5 rounded bg-surface-container-highest flex items-center justify-center font-bold text-[9px] text-secondary">W</button>
                     </div>
                   </div>
 
-                  {/* Knobs: Pre-Gain, Pan, Phase */}
-                  <div className="grid grid-cols-3 gap-pad-xs bg-surface-container p-pad-xs rounded text-center">
-                    <div className="flex flex-col items-center">
-                      <span className="font-meter-tick text-meter-tick text-on-surface-variant">Pre-Gain</span>
-                      <div className="w-6 h-6 rounded-full bg-surface-container-lowest flex items-center justify-center my-pad-micro shadow">
-                        <div className="w-0.5 h-2.5 bg-primary -rotate-45" />
+                  {/* Track Inspector Content (Scrollable) */}
+                  <div className="flex-1 overflow-y-auto p-2 flex flex-col gap-2">
+                    {/* Selected Track Header Card */}
+                    <div className="bg-surface-container p-2 rounded flex flex-col gap-1 border-l-2 border-primary">
+                      <div className="flex items-center justify-between">
+                        <span className="font-mono text-[11px] text-on-surface font-bold capitalize truncate">
+                          01 • {selectedStem} Stem
+                        </span>
+                        <span className="font-mono text-[9px] text-primary bg-primary/10 px-1.5 py-0.2 rounded font-bold shrink-0">Audio</span>
                       </div>
-                      <span className="font-meter-tick text-meter-tick text-on-surface">
-                        {(20 * Math.log10(Math.max(0.01, stems[selectedStem]?.volume || 1.0))).toFixed(1)} dB
-                      </span>
+                      <div className="text-[9px] font-mono text-on-surface-variant whitespace-nowrap truncate">In: Stereo L/R • Out: Stereo Bus</div>
+                      <div className="flex items-center gap-1 mt-1">
+                        <button
+                          onClick={() => handleStemMuteToggle(selectedStem)}
+                          className={`w-6 h-5 rounded flex items-center justify-center font-bold text-[9px] font-mono transition-all ${
+                            stems[selectedStem]?.muted ? "bg-error text-on-error shadow-sm" : "bg-surface-container-highest text-on-surface hover:text-on-surface"
+                          }`}
+                        >
+                          M
+                        </button>
+                        <button
+                          onClick={() => handleStemSoloToggle(selectedStem)}
+                          className={`w-6 h-5 rounded flex items-center justify-center font-bold text-[9px] font-mono transition-all ${
+                            stems[selectedStem]?.solo ? "bg-secondary-container text-on-secondary-container shadow-sm" : "bg-surface-container-highest text-on-surface hover:text-on-surface"
+                          }`}
+                        >
+                          S
+                        </button>
+                        <button className="w-5 h-5 rounded bg-surface-container-highest flex items-center justify-center font-bold text-[9px] font-mono text-error">R</button>
+                        <button className="w-5 h-5 rounded bg-surface-container-highest flex items-center justify-center font-bold text-[9px] font-mono text-primary">e</button>
+                        <button className="w-5 h-5 rounded bg-surface-container-highest flex items-center justify-center font-bold text-[9px] font-mono text-tertiary">R</button>
+                        <button className="w-5 h-5 rounded bg-surface-container-highest flex items-center justify-center font-bold text-[9px] font-mono text-secondary">W</button>
+                      </div>
                     </div>
-                    <div className="flex flex-col items-center">
-                      <span className="font-meter-tick text-meter-tick text-on-surface-variant">Pan</span>
-                      <div className="w-6 h-6 rounded-full bg-surface-container-lowest flex items-center justify-center my-pad-micro shadow">
+
+                    {/* Knobs: Pre-Gain, Pan, Phase */}
+                    <div className="grid grid-cols-3 gap-1 bg-surface-container p-2 rounded text-center">
+                      <div className="flex flex-col items-center">
+                        <span className="font-mono text-[9px] text-on-surface-variant uppercase whitespace-nowrap">Pre-Gain</span>
+                        <div className="w-6 h-6 rounded-full bg-surface-container-lowest flex items-center justify-center my-1 shadow">
+                          <div className="w-0.5 h-2.5 bg-primary -rotate-45" />
+                        </div>
+                        <span className="font-mono text-[9px] text-on-surface font-bold whitespace-nowrap">
+                          {(20 * Math.log10(Math.max(0.01, stems[selectedStem]?.volume || 1.0))).toFixed(1)} dB
+                        </span>
+                      </div>
+                      <div className="flex flex-col items-center">
+                        <span className="font-mono text-[9px] text-on-surface-variant uppercase whitespace-nowrap">Pan</span>
                         <div
-                          className="w-0.5 h-2.5 bg-secondary"
-                          style={{ transform: `rotate(${(stems[selectedStem]?.pan || 0) * 90}deg)` }}
-                        />
+                          onClick={() => {
+                            const nextPan = (stems[selectedStem]?.pan || 0) === 0 ? 0.5 : (stems[selectedStem]?.pan || 0) > 0 ? -0.5 : 0;
+                            handleStemPanChange(selectedStem, nextPan);
+                          }}
+                          className="w-6 h-6 rounded-full bg-surface-container-lowest flex items-center justify-center my-1 shadow cursor-pointer hover:bg-surface-container-high transition-colors"
+                          title="Click to cycle Pan L/C/R"
+                        >
+                          <div
+                            className="w-0.5 h-2.5 bg-secondary"
+                            style={{ transform: `rotate(${(stems[selectedStem]?.pan || 0) * 90}deg)` }}
+                          />
+                        </div>
+                        <span className="font-mono text-[9px] text-secondary font-bold whitespace-nowrap">
+                          {stems[selectedStem]?.pan === 0 ? "C" : (stems[selectedStem]?.pan || 0) > 0 ? `R${Math.round((stems[selectedStem]?.pan || 0) * 100)}` : `L${Math.round(Math.abs(stems[selectedStem]?.pan || 0) * 100)}`}
+                        </span>
                       </div>
-                      <span className="font-meter-tick text-meter-tick text-on-surface">
-                        {stems[selectedStem]?.pan === 0 ? "C" : (stems[selectedStem]?.pan || 0) > 0 ? `R ${Math.round((stems[selectedStem]?.pan || 0) * 100)}` : `L ${Math.round(Math.abs(stems[selectedStem]?.pan || 0) * 100)}`}
-                      </span>
+                      <div className="flex flex-col items-center">
+                        <span className="font-mono text-[9px] text-on-surface-variant uppercase whitespace-nowrap">Phase</span>
+                        <button className="w-6 h-6 rounded bg-surface-container-highest flex items-center justify-center my-1 text-on-surface text-[10px] font-bold font-mono">∅</button>
+                        <span className="font-mono text-[9px] text-on-surface font-semibold whitespace-nowrap">0°</span>
+                      </div>
                     </div>
-                    <div className="flex flex-col items-center">
-                      <span className="font-meter-tick text-meter-tick text-on-surface-variant">Phase</span>
-                      <button className="w-6 h-6 rounded bg-surface-container-highest flex items-center justify-center my-pad-micro text-on-surface text-[10px] font-bold">∅</button>
-                      <span className="font-meter-tick text-meter-tick text-on-surface">0°</span>
+
+                    {/* Studio EQ Mini Curve */}
+                    <div className="bg-surface-container p-2 rounded flex flex-col gap-1">
+                      <div className="flex items-center justify-between font-mono text-[10px] text-on-surface">
+                        <span className="font-bold">Studio EQ</span>
+                        <span className="text-tertiary font-bold text-[9px]">ACTIVE</span>
+                      </div>
+                      <div className="h-14 bg-surface-container-lowest rounded relative flex items-center justify-center overflow-hidden border border-surface-container-highest/40">
+                        <svg className="w-full h-full" viewBox="0 0 160 64">
+                          <line stroke="#33353b" strokeWidth="0.5" x1="0" x2="160" y1="32" y2="32" />
+                          <line stroke="#33353b" strokeWidth="0.5" x1="40" x2="40" y1="0" y2="64" />
+                          <line stroke="#33353b" strokeWidth="0.5" x1="80" x2="80" y1="0" y2="64" />
+                          <line stroke="#33353b" strokeWidth="0.5" x1="120" x2="120" y1="0" y2="64" />
+                          <path d="M 0 32 Q 25 32, 35 22 T 70 30 T 110 18 T 160 28" fill="none" stroke="#89ceff" strokeWidth="1.5" />
+                          <circle cx="35" cy="22" fill="#ec6a06" r="2.5" />
+                          <circle cx="70" cy="30" fill="#4ae176" r="2.5" />
+                          <circle cx="110" cy="18" fill="#89ceff" r="2.5" />
+                        </svg>
+                      </div>
+                    </div>
+
+                    {/* Audio Inserts Rack */}
+                    <div className="bg-surface-container p-2 rounded flex flex-col gap-1">
+                      <span className="font-mono text-[10px] text-on-surface font-bold">Audio Inserts (4/8)</span>
+                      {[
+                        "1. FabFilter Pro-Q 3",
+                        "2. CLA-2A Compressor",
+                        "3. Soothe2 Dynamic",
+                        "4. Valhalla VintageVerb",
+                      ].map((item, idx) => (
+                        <div key={idx} className="flex items-center justify-between bg-surface-container-high px-2 py-1 rounded font-mono text-[9px]">
+                          <span className="text-primary truncate">{item}</span>
+                          <span className="w-1.5 h-1.5 rounded-full bg-tertiary shrink-0 ml-1" />
+                        </div>
+                      ))}
+                      <div className="flex items-center justify-between bg-surface-container-lowest px-2 py-1 rounded font-mono text-[9px] text-on-surface-variant/40">
+                        <span>5. + Empty Slot</span>
+                      </div>
+                    </div>
+
+                    {/* Quick Sends Rack */}
+                    <div className="bg-surface-container p-2 rounded flex flex-col gap-1">
+                      <span className="font-mono text-[10px] text-on-surface font-bold">Sends</span>
+                      <div className="flex items-center justify-between font-mono text-[9px] text-on-surface">
+                        <span className="truncate">FX 1 - Reverb Bus</span>
+                        <span className="text-secondary font-bold">-12.4 dB</span>
+                      </div>
+                      <div className="w-full h-1 bg-surface-container-lowest rounded-full overflow-hidden">
+                        <div className="w-[60%] h-full bg-secondary" />
+                      </div>
+                      <div className="flex items-center justify-between font-mono text-[9px] text-on-surface mt-1">
+                        <span className="truncate">FX 2 - Echo Delay</span>
+                        <span className="text-secondary font-bold">-18.0 dB</span>
+                      </div>
+                      <div className="w-full h-1 bg-surface-container-lowest rounded-full overflow-hidden">
+                        <div className="w-[45%] h-full bg-secondary" />
+                      </div>
                     </div>
                   </div>
+                </aside>
+              ) : (
+                <div
+                  onClick={() => setIsInspectorOpen(true)}
+                  className="w-7 bg-surface-container-low border-r border-surface-container-highest flex flex-col items-center py-2 cursor-pointer hover:bg-surface-container text-on-surface-variant hover:text-primary transition-all shrink-0 z-20 select-none group"
+                  title="Click to expand Track Inspector"
+                >
+                  <span className="material-symbols-outlined text-[14px] group-hover:translate-x-0.5 transition-transform">chevron_right</span>
+                  <span className="text-[9px] font-mono font-bold tracking-widest [writing-mode:vertical-rl] rotate-180 mt-3 text-on-surface-variant group-hover:text-primary uppercase">Inspector</span>
+                </div>
+              )}
 
-                  {/* Studio EQ Mini Curve */}
-                  <div className="bg-surface-container p-pad-xs rounded flex flex-col gap-pad-xs">
-                    <div className="flex items-center justify-between font-label-sm text-label-sm text-on-surface">
-                      <span>Studio EQ</span>
-                      <span className="text-tertiary text-[10px]">Active</span>
-                    </div>
-                    <div className="h-16 bg-surface-container-lowest rounded relative flex items-center justify-center overflow-hidden border border-surface-container-highest/40">
-                      <svg className="w-full h-full" viewBox="0 0 160 64">
-                        <line stroke="#33353b" strokeWidth="0.5" x1="0" x2="160" y1="32" y2="32" />
-                        <line stroke="#33353b" strokeWidth="0.5" x1="40" x2="40" y1="0" y2="64" />
-                        <line stroke="#33353b" strokeWidth="0.5" x1="80" x2="80" y1="0" y2="64" />
-                        <line stroke="#33353b" strokeWidth="0.5" x1="120" x2="120" y1="0" y2="64" />
-                        <path d="M 0 32 Q 25 32, 35 22 T 70 30 T 110 18 T 160 28" fill="none" stroke="#89ceff" strokeWidth="1.5" />
-                        <circle cx="35" cy="22" fill="#ec6a06" r="2.5" />
-                        <circle cx="70" cy="30" fill="#4ae176" r="2.5" />
-                        <circle cx="110" cy="18" fill="#89ceff" r="2.5" />
-                      </svg>
-                    </div>
-                  </div>
-
-                  {/* Audio Inserts Rack */}
-                  <div className="bg-surface-container p-pad-xs rounded flex flex-col gap-pad-micro">
-                    <span className="font-label-sm text-label-sm text-on-surface mb-pad-micro">Audio Inserts (4/8)</span>
-                    <div className="flex items-center justify-between bg-surface-container-high px-pad-xs py-pad-micro rounded font-label-sm text-[10px]">
-                      <span className="text-primary truncate">1. FabFilter Pro-Q 3</span>
-                      <span className="w-1.5 h-1.5 rounded-full bg-tertiary" />
-                    </div>
-                    <div className="flex items-center justify-between bg-surface-container-high px-pad-xs py-pad-micro rounded font-label-sm text-[10px]">
-                      <span className="text-primary truncate">2. CLA-2A Compressor</span>
-                      <span className="w-1.5 h-1.5 rounded-full bg-tertiary" />
-                    </div>
-                    <div className="flex items-center justify-between bg-surface-container-high px-pad-xs py-pad-micro rounded font-label-sm text-[10px]">
-                      <span className="text-primary truncate">3. Soothe2 Dynamic</span>
-                      <span className="w-1.5 h-1.5 rounded-full bg-tertiary" />
-                    </div>
-                    <div className="flex items-center justify-between bg-surface-container-high px-pad-xs py-pad-micro rounded font-label-sm text-[10px]">
-                      <span className="text-primary truncate">4. Valhalla VintageVerb</span>
-                      <span className="w-1.5 h-1.5 rounded-full bg-tertiary" />
-                    </div>
-                    <div className="flex items-center justify-between bg-surface-container-lowest px-pad-xs py-pad-micro rounded font-label-sm text-[10px] text-on-surface-variant/40">
-                      <span>5. + Empty Slot</span>
-                    </div>
-                  </div>
-
-                  {/* Quick Sends Rack */}
-                  <div className="bg-surface-container p-pad-xs rounded flex flex-col gap-pad-micro">
-                    <span className="font-label-sm text-label-sm text-on-surface mb-pad-micro">Sends</span>
-                    <div className="flex items-center justify-between font-label-sm text-[10px] text-on-surface">
-                      <span className="truncate">FX 1 - Reverb Bus</span>
-                      <span className="font-mono text-secondary">-12.4 dB</span>
-                    </div>
-                    <div className="w-full h-1 bg-surface-container-lowest rounded-full overflow-hidden">
-                      <div className="w-[60%] h-full bg-secondary" />
-                    </div>
-                    <div className="flex items-center justify-between font-label-sm text-[10px] text-on-surface mt-pad-micro">
-                      <span className="truncate">FX 2 - Echo Delay</span>
-                      <span className="font-mono text-secondary">-18.0 dB</span>
-                    </div>
-                    <div className="w-full h-1 bg-surface-container-lowest rounded-full overflow-hidden">
-                      <div className="w-[45%] h-full bg-secondary" />
-                    </div>
+              {/* Vertical Resizing Divider (Left Inspector <-> Center Timeline) */}
+              {isInspectorOpen && (
+                <div
+                  onMouseDown={handleInspectorResizeStart}
+                  className={`group relative w-2 -mr-1 z-30 cursor-col-resize select-none flex items-center justify-center transition-colors ${
+                    isResizingInspector ? "bg-primary/40" : "hover:bg-primary/20"
+                  }`}
+                  title="Drag to resize Inspector panel (<|>)"
+                >
+                  <div
+                    className={`w-[2px] h-full transition-all duration-150 ${
+                      isResizingInspector
+                        ? "bg-primary shadow-[0_0_10px_#89ceff]"
+                        : "bg-surface-container-highest group-hover:bg-primary group-hover:shadow-[0_0_8px_#89ceff]"
+                    }`}
+                  />
+                  <div
+                    className={`absolute top-1/2 -translate-y-1/2 flex flex-col items-center gap-1 py-2 px-0.5 rounded bg-surface-container-high/90 border border-surface-container-highest shadow-md transition-all duration-150 ${
+                      isResizingInspector
+                        ? "opacity-100 border-primary shadow-[0_0_10px_#89ceff]"
+                        : "opacity-0 group-hover:opacity-100 group-hover:border-primary/60"
+                    }`}
+                  >
+                    <div className="w-1 h-1 rounded-full bg-primary" />
+                    <div className="w-1 h-1 rounded-full bg-primary" />
+                    <div className="w-1 h-1 rounded-full bg-primary" />
                   </div>
                 </div>
-              </aside>
+              )}
+            </>
+          )}
 
-              {/* Middle Column: Arrange View & Timeline */}
-              <section className="col-span-6 lg:col-span-7 xl:col-span-7 flex flex-col bg-surface-container-lowest shadow-[inset_1px_0_0_rgba(255,255,255,0.05)] overflow-hidden relative">
-                <ArrangementView
+          {/* Middle Column: Active Page Viewport Area */}
+          <section className="flex-1 min-w-0 flex flex-col bg-surface-container-lowest shadow-[inset_1px_0_0_rgba(255,255,255,0.05)] overflow-hidden relative">
+                {/* Page 1: Multi-track Arrangement Window */}
+                <div className={`flex-1 h-full ${currentView === "arrangement" ? "block" : "hidden"}`}>
+                  <ArrangementView
+                    audioGraph={audioGraphRef.current}
+                    trackMetadata={trackMetadata}
+                    currentTime={currentTime}
+                    duration={duration}
+                    isPlaying={isPlaying}
+                    isLooping={isLooping}
+                    stemStates={stems}
+                    fxRackState={fxRackState}
+                    gestureState={gestureState}
+                    automationPoints={automationPoints}
+                    showAutomation={showAutomation}
+                    clips={clips}
+                    songs={songs}
+                    onToggleAutomation={() => setShowAutomation(!showAutomation)}
+                    onSeek={handleSeek}
+                    onStemVolumeChange={handleStemVolumeChange}
+                    onStemMuteToggle={handleStemMuteToggle}
+                    onStemSoloToggle={handleStemSoloToggle}
+                    onStemPanChange={handleStemPanChange}
+                    onToggleReverseStem={handleToggleReverseStem}
+                    onToggleReverseClip={handleToggleReverseClip}
+                    onReverseAllStems={handleReverseAllStems}
+                    onStemReverbChange={handleStemReverbChange}
+                    onStemReverbPresetChange={handleStemReverbPresetChange}
+                    onStemReverbToggle={handleStemReverbToggle}
+                    onSliceClip={handleSliceClip}
+                    onTrimClip={handleTrimClip}
+                    onMoveClip={handleMoveClip}
+                    onDuplicateClip={handleDuplicateClip}
+                    onDeleteClip={handleDeleteClip}
+                    onAddClip={handleAddClip}
+                    onAddKeyframe={handleAddKeyframe}
+                    onUpdateKeyframe={handleUpdateKeyframe}
+                    onDeleteKeyframe={handleDeleteKeyframe}
+                    onResetStemKeyframes={handleResetStemKeyframes}
+                    onResetAllKeyframes={handleResetAllKeyframes}
+                    canUndo={canUndo}
+                    canRedo={canRedo}
+                    onUndo={handleUndo}
+                    onRedo={handleRedo}
+                    className="flex-1 h-full"
+                  />
+                </div>
+
+                {/* Page 2: Full Screen MixConsole Desk */}
+                <div className={`flex-1 h-full ${currentView === "mixer" ? "block" : "hidden"}`}>
+                  <MixConsoleView
+                    audioGraph={audioGraphRef.current}
+                    stemStates={stems}
+                    masterVolume={masterVolume}
+                    djFilterCutoff={djFilterCutoff}
+                    djFilterType={djFilterType}
+                    djFilterQ={djFilterQ}
+                    isDucking={isDucking}
+                    duckingReduction={duckingReduction}
+                    onStemVolumeChange={handleStemVolumeChange}
+                    onStemMuteToggle={handleStemMuteToggle}
+                    onStemSoloToggle={handleStemSoloToggle}
+                    onStemPanChange={handleStemPanChange}
+                    onMasterVolumeChange={handleMasterVolumeChange}
+                    onDjFilterChange={handleDjFilterChange}
+                    onDuckingToggle={handleDuckingToggle}
+                    className="flex-1 h-full"
+                  />
+                </div>
+
+                {/* Page 3: 5-Insert FX Rack View */}
+                <div className={`flex-1 h-full ${currentView === "fxrack" ? "block" : "hidden"}`}>
+                  <FxRackView
+                    audioGraph={audioGraphRef.current}
+                    fxRackState={fxRackState}
+                    onFxChange={handleStemFxChange}
+                    className="flex-1 h-full"
+                  />
+                </div>
+
+                {/* Page 4: Vision AI & Gesture Lab */}
+                <div className={`flex-1 h-full ${currentView === "gesture" ? "block" : "hidden"}`}>
+                  <GestureLabView
+                    gestureTracker={gestureTrackerRef.current}
+                    gestureState={gestureState}
+                    isGestureEnabled={isGestureEnabled}
+                    onToggleGestureEnabled={setIsGestureEnabled}
+                    onGestureStateChange={handleGestureStateChange}
+                    className="flex-1 h-full"
+                  />
+                </div>
+
+                {/* Page 5: Audio-Reactive Visual Stage */}
+                <div className={`flex-1 h-full ${currentView === "visualizer" ? "block" : "hidden"}`}>
+                  <VisualStageView
+                    audioGraph={audioGraphRef.current}
+                    trackMetadata={trackMetadata}
+                    currentTime={currentTime}
+                    isPlaying={isPlaying}
+                    className="flex-1 h-full"
+                  />
+                </div>
+
+                {/* Page 6: Neural Demixing & Media Ingestion Lab */}
+                <div className={`flex-1 h-full ${currentView === "ingestion" ? "block" : "hidden"}`}>
+                  <DemixLabView
+                    trackMetadata={trackMetadata}
+                    processStatus={processStatus}
+                    hardwareInfo={hardwareInfo}
+                    songs={songs}
+                    onTrackLoaded={handleTrackLoaded}
+                    onStatusChange={setProcessStatus}
+                    className="flex-1 h-full"
+                  />
+                </div>
+              </section>
+
+              {/* Vertical Resizing Divider (Center Timeline <-> Right MediaBay) */}
+              {isMediaBayOpen && (
+                <div
+                  onMouseDown={handleMediaBayResizeStart}
+                  className={`group relative w-2 -ml-1 z-30 cursor-col-resize select-none flex items-center justify-center transition-colors ${
+                    isResizingMediaBay ? "bg-primary/40" : "hover:bg-primary/20"
+                  }`}
+                  title="Drag to resize MediaBay panel (<|>)"
+                >
+                  <div
+                    className={`w-[2px] h-full transition-all duration-150 ${
+                      isResizingMediaBay
+                        ? "bg-primary shadow-[0_0_10px_#89ceff]"
+                        : "bg-surface-container-highest group-hover:bg-primary group-hover:shadow-[0_0_8px_#89ceff]"
+                    }`}
+                  />
+                  <div
+                    className={`absolute top-1/2 -translate-y-1/2 flex flex-col items-center gap-1 py-2 px-0.5 rounded bg-surface-container-high/90 border border-surface-container-highest shadow-md transition-all duration-150 ${
+                      isResizingMediaBay
+                        ? "opacity-100 border-primary shadow-[0_0_10px_#89ceff]"
+                        : "opacity-0 group-hover:opacity-100 group-hover:border-primary/60"
+                    }`}
+                  >
+                    <div className="w-1 h-1 rounded-full bg-primary" />
+                    <div className="w-1 h-1 rounded-full bg-primary" />
+                    <div className="w-1 h-1 rounded-full bg-primary" />
+                  </div>
+                </div>
+              )}
+
+              {/* Right Column: MediaBay & VST Browser (Sliding Window with Minimize Option) */}
+              {isMediaBayOpen ? (
+                <aside
+                  style={{ width: `${mediaBayWidth}px` }}
+                  className="flex flex-col bg-surface-container-low border-l border-surface-container-highest shadow-[inset_1px_0_0_rgba(255,255,255,0.05)] overflow-hidden shrink-0 z-20 select-none transition-[width] duration-75"
+                >
+                  {/* MediaBay Header */}
+                  <div className="h-7 bg-surface-container px-2 flex items-center justify-between border-b border-surface-container-highest shrink-0">
+                    <div className="flex items-center gap-1 min-w-0">
+                      <span className="material-symbols-outlined text-[14px] text-primary">folder_special</span>
+                      <span className="font-mono text-[10px] font-bold text-on-surface tracking-wide">MEDIABAY</span>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button className="px-1.5 py-0.5 rounded bg-surface-container-high text-primary font-mono text-[9px] font-bold">Browse</button>
+                      <button className="px-1.5 py-0.5 rounded text-on-surface-variant hover:text-on-surface font-mono text-[9px]">Favs</button>
+                      <button className="px-1.5 py-0.5 rounded text-on-surface-variant hover:text-on-surface font-mono text-[9px]">VST</button>
+                      <button
+                        onClick={() => setIsMediaBayOpen(false)}
+                        className="w-5 h-5 flex items-center justify-center rounded hover:bg-surface-container-high text-on-surface-variant hover:text-on-surface transition-colors ml-0.5"
+                        title="Minimize MediaBay"
+                      >
+                        <span className="material-symbols-outlined text-[14px]">chevron_right</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Search Input */}
+                  <div className="p-1.5 bg-surface-container-low border-b border-surface-container-highest/60 shrink-0">
+                    <div className="flex items-center bg-surface-container-lowest px-2 py-1 rounded border border-surface-container-highest">
+                      <span className="material-symbols-outlined text-[13px] text-on-surface-variant mr-1.5">search</span>
+                      <input
+                        className="bg-transparent border-none outline-none font-mono text-[10px] text-on-surface w-full placeholder:text-on-surface-variant/40"
+                        placeholder="Search samples, loops, presets..."
+                        type="text"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Tree Hierarchy Browser */}
+                  <div className="flex-1 overflow-y-auto p-2 font-mono text-[10px] flex flex-col gap-1">
+                    <div className="flex items-center gap-1 text-on-surface py-0.5 px-1 rounded hover:bg-surface-container cursor-pointer">
+                      <span className="material-symbols-outlined text-[14px]">arrow_drop_down</span>
+                      <span className="material-symbols-outlined text-[13px] text-secondary">album</span>
+                      <span className="font-bold">VST Instruments</span>
+                    </div>
+                    <div className="pl-5 flex flex-col gap-0.5 text-[9px] text-on-surface-variant">
+                      <span className="hover:text-primary cursor-pointer py-0.5 truncate">• Omnisphere 2.8</span>
+                      <span className="hover:text-primary cursor-pointer py-0.5 truncate">• Serum (Xfer Records)</span>
+                      <span className="hover:text-primary cursor-pointer py-0.5 truncate">• Kontakt 7</span>
+                      <span className="hover:text-primary cursor-pointer py-0.5 truncate">• Diva (u-he)</span>
+                    </div>
+
+                    <div className="flex items-center gap-1 text-on-surface py-0.5 px-1 rounded hover:bg-surface-container cursor-pointer mt-1">
+                      <span className="material-symbols-outlined text-[14px]">arrow_drop_down</span>
+                      <span className="material-symbols-outlined text-[13px] text-primary">folder</span>
+                      <span className="font-bold">Sample Library</span>
+                    </div>
+                    <div className="pl-5 flex flex-col gap-0.5 text-[9px] text-on-surface-variant">
+                      <div className="flex items-center gap-1 text-on-surface py-0.5">
+                        <span className="material-symbols-outlined text-[12px]">folder_open</span>
+                        <span className="font-semibold">Drums &amp; Percussion</span>
+                      </div>
+                      <div className="pl-3 flex flex-col gap-0.5 text-[9px]">
+                        <span className="hover:text-primary cursor-pointer py-0.5 truncate">• Acoustic_Snare_04.wav</span>
+                        <span className="bg-secondary-container/20 text-secondary font-bold px-1 py-0.5 rounded cursor-pointer truncate">• Neon_Kick_Sub808.wav</span>
+                        <span className="hover:text-primary cursor-pointer py-0.5 truncate">• HiHat_Closed_16th.wav</span>
+                        <span className="hover:text-primary cursor-pointer py-0.5 truncate">• Clap_Digital_Fat.wav</span>
+                      </div>
+                      <div className="flex items-center gap-1 text-on-surface mt-1 py-0.5">
+                        <span className="material-symbols-outlined text-[12px]">folder</span>
+                        <span>Vocals &amp; Acapellas</span>
+                      </div>
+                      <div className="flex items-center gap-1 text-on-surface mt-0.5 py-0.5">
+                        <span className="material-symbols-outlined text-[12px]">folder</span>
+                        <span>Guitars &amp; Plucks</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Mini Waveform Sample Previewer Dock */}
+                  <div className="h-20 bg-surface-container p-2 border-t border-surface-container-highest flex flex-col justify-between shrink-0">
+                    <div className="flex items-center justify-between font-mono text-[9px]">
+                      <span className="font-bold text-secondary truncate">Neon_Kick_Sub808.wav</span>
+                      <span className="text-on-surface-variant">48k / 24b</span>
+                    </div>
+                    <div className="h-8 bg-surface-container-lowest rounded relative overflow-hidden flex items-center border border-surface-container-highest/60 my-1">
+                      <svg className="w-full h-full" preserveAspectRatio="none" viewBox="0 0 100 20">
+                        <path d="M 0 10 Q 5 0, 10 10 T 20 10 T 30 15 T 40 10 T 50 12 T 60 10 T 80 10 T 100 10" fill="none" stroke="#ffb690" strokeWidth="1.5" />
+                      </svg>
+                      <div className="absolute top-0 bottom-0 left-1/3 w-0.5 bg-primary shadow-[0_0_4px_#89ceff]" />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1">
+                        <button className="w-5 h-5 rounded bg-secondary-container text-on-secondary-container flex items-center justify-center font-bold">
+                          <span className="material-symbols-outlined text-[12px]">play_arrow</span>
+                        </button>
+                        <button className="w-5 h-5 rounded bg-surface-container-highest text-on-surface flex items-center justify-center">
+                          <span className="material-symbols-outlined text-[12px]">repeat</span>
+                        </button>
+                      </div>
+                      <span className="font-mono text-[8px] text-tertiary font-bold">Auto-Play: ON</span>
+                    </div>
+                  </div>
+                </aside>
+              ) : (
+                <div
+                  onClick={() => setIsMediaBayOpen(true)}
+                  className="w-7 bg-surface-container-low border-l border-surface-container-highest flex flex-col items-center py-2 cursor-pointer hover:bg-surface-container text-on-surface-variant hover:text-secondary transition-all shrink-0 z-20 select-none group"
+                  title="Click to expand MediaBay & Sound Library"
+                >
+                  <span className="material-symbols-outlined text-[14px] group-hover:-translate-x-0.5 transition-transform">chevron_left</span>
+                  <span className="text-[9px] font-mono font-bold tracking-widest [writing-mode:vertical-rl] mt-3 text-on-surface-variant group-hover:text-secondary uppercase">MediaBay</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Bottom Dock: MixConsole (Exclusively active on Arrangement view) */}
+          {currentView === "arrangement" && (
+            <section
+              style={!isFooterCollapsed ? { height: `${dockHeight}px` } : undefined}
+              className={`flex flex-col bg-surface-container-low border-t border-surface-container-highest shadow-[0_-4px_16px_rgba(0,0,0,0.6)] select-none shrink-0 relative transition-[height] duration-75 ${
+                isFooterCollapsed ? "h-7 overflow-hidden" : ""
+              }`}
+            >
+              {/* Horizontal Resizing Handle with Glowing Highlight above the bottom MixConsole dock */}
+              <div
+                onMouseDown={handleDockResizeStart}
+                className={`group absolute -top-2 left-0 right-0 h-4 z-40 cursor-row-resize flex items-center justify-center transition-colors select-none ${
+                  isResizingDock ? "bg-primary/25" : "hover:bg-primary/15"
+                }`}
+                title="Drag up/down to resize MixConsole dock height"
+              >
+                <div
+                  className={`h-[3px] rounded-full transition-all duration-150 flex items-center justify-center ${
+                    isResizingDock
+                      ? "w-40 bg-primary shadow-[0_0_14px_#89ceff]"
+                      : "w-24 bg-surface-container-highest group-hover:w-36 group-hover:bg-primary group-hover:shadow-[0_0_12px_#89ceff]"
+                  }`}
+                >
+                  <div className="w-8 h-[1px] bg-white/80 rounded" />
+                </div>
+              </div>
+              <div className="h-6 bg-surface-container px-pad-xs flex items-center justify-between border-b border-surface-container-highest font-label-sm text-[10px] text-on-surface-variant shrink-0">
+                <span className="font-semibold text-on-surface flex items-center gap-1">
+                  <span className="material-symbols-outlined text-[13px] text-primary">equalizer</span>
+                  MixConsole Dock
+                </span>
+                <button
+                  onClick={() => setIsFooterCollapsed(!isFooterCollapsed)}
+                  className="px-1.5 py-0.5 rounded hover:bg-surface-container-high text-on-surface-variant hover:text-on-surface text-[10px]"
+                  title={isFooterCollapsed ? "Expand MixConsole" : "Collapse MixConsole"}
+                >
+                  {isFooterCollapsed ? "▲ Expand" : "▼ Collapse"}
+                </button>
+              </div>
+              <div className="flex-1 min-h-0 overflow-hidden">
+                <MixConsoleView
                   audioGraph={audioGraphRef.current}
-                  trackMetadata={trackMetadata}
-                  currentTime={currentTime}
-                  duration={duration}
-                  isPlaying={isPlaying}
-                  isLooping={isLooping}
                   stemStates={stems}
-                  gestureState={gestureState}
-                  automationPoints={automationManagerRef.current.getPoints()}
-                  showAutomation={showAutomation}
-                  clips={clips}
-                  songs={songs}
-                  onToggleAutomation={() => setShowAutomation(!showAutomation)}
-                  onSeek={handleSeek}
+                  masterVolume={masterVolume}
+                  djFilterCutoff={djFilterCutoff}
+                  djFilterType={djFilterType}
+                  djFilterQ={djFilterQ}
+                  isDucking={isDucking}
+                  duckingReduction={duckingReduction}
                   onStemVolumeChange={handleStemVolumeChange}
                   onStemMuteToggle={handleStemMuteToggle}
                   onStemSoloToggle={handleStemSoloToggle}
                   onStemPanChange={handleStemPanChange}
-                  onSliceClip={handleSliceClip}
-                  onTrimClip={handleTrimClip}
-                  onMoveClip={handleMoveClip}
-                  onDuplicateClip={handleDuplicateClip}
-                  onDeleteClip={handleDeleteClip}
-                  onAddClip={handleAddClip}
-                  className="flex-1 h-full"
+                  onMasterVolumeChange={handleMasterVolumeChange}
+                  onDjFilterChange={handleDjFilterChange}
+                  onDuckingToggle={handleDuckingToggle}
+                  className="h-full"
                 />
-              </section>
-
-              {/* Right Column: MediaBay & VST Browser */}
-              <aside className="col-span-3 lg:col-span-3 xl:col-span-3 flex flex-col bg-surface-container-low shadow-[inset_1px_0_0_rgba(255,255,255,0.05)] overflow-hidden z-20">
-                {/* MediaBay Header */}
-                <div className="h-6 bg-surface-container px-pad-xs flex items-center justify-between border-b border-surface-container-highest font-label-sm text-label-sm shrink-0">
-                  <div className="flex items-center gap-pad-xs">
-                    <span className="material-symbols-outlined text-[14px] text-primary">folder_special</span>
-                    <span className="font-semibold text-on-surface">MediaBay</span>
-                  </div>
-                  <div className="flex items-center gap-pad-micro">
-                    <button className="px-pad-xs py-pad-micro rounded bg-surface-container-high text-primary font-bold">Browse</button>
-                    <button className="px-pad-xs py-pad-micro rounded text-on-surface-variant hover:text-on-surface">Favs</button>
-                    <button className="px-pad-xs py-pad-micro rounded text-on-surface-variant hover:text-on-surface">VST</button>
-                  </div>
-                </div>
-
-                {/* Search Input */}
-                <div className="p-pad-xs bg-surface-container-low border-b border-surface-container-highest/60 shrink-0">
-                  <div className="flex items-center bg-surface-container-lowest px-pad-xs py-pad-micro rounded border border-surface-container-highest">
-                    <span className="material-symbols-outlined text-[14px] text-on-surface-variant mr-pad-xs">search</span>
-                    <input
-                      className="bg-transparent border-none outline-none font-body-sm text-body-sm text-on-surface w-full placeholder:text-on-surface-variant/40"
-                      placeholder="Search samples, loops, presets..."
-                      type="text"
-                    />
-                  </div>
-                </div>
-
-                {/* Tree Hierarchy Browser */}
-                <div className="flex-1 overflow-y-auto p-pad-xs font-body-sm text-body-sm flex flex-col gap-pad-micro">
-                  <div className="flex items-center gap-pad-xs text-on-surface py-pad-micro px-pad-xs rounded hover:bg-surface-container cursor-pointer">
-                    <span className="material-symbols-outlined text-[14px]">arrow_drop_down</span>
-                    <span className="material-symbols-outlined text-[14px] text-secondary">album</span>
-                    <span className="font-semibold">VST Instruments</span>
-                  </div>
-                  <div className="pl-pad-lg flex flex-col gap-pad-micro font-label-sm text-[10px] text-on-surface-variant">
-                    <span className="hover:text-primary cursor-pointer py-pad-micro">• Omnisphere 2.8</span>
-                    <span className="hover:text-primary cursor-pointer py-pad-micro">• Serum (Xfer Records)</span>
-                    <span className="hover:text-primary cursor-pointer py-pad-micro">• Kontakt 7</span>
-                    <span className="hover:text-primary cursor-pointer py-pad-micro">• Diva (u-he)</span>
-                  </div>
-
-                  <div className="flex items-center gap-pad-xs text-on-surface py-pad-micro px-pad-xs rounded hover:bg-surface-container cursor-pointer mt-pad-xs">
-                    <span className="material-symbols-outlined text-[14px]">arrow_drop_down</span>
-                    <span className="material-symbols-outlined text-[14px] text-primary">folder</span>
-                    <span className="font-semibold">Sample Library</span>
-                  </div>
-                  <div className="pl-pad-lg flex flex-col gap-pad-micro font-label-sm text-[10px] text-on-surface-variant">
-                    <div className="flex items-center gap-pad-xs text-on-surface">
-                      <span className="material-symbols-outlined text-[12px]">folder_open</span>
-                      <span>Drums &amp; Percussion</span>
-                    </div>
-                    <div className="pl-pad-md flex flex-col gap-pad-micro text-[9px]">
-                      <span className="hover:text-primary cursor-pointer py-pad-micro">• Acoustic_Snare_04.wav</span>
-                      <span className="bg-secondary-container/20 text-secondary font-bold px-pad-xs py-pad-micro rounded cursor-pointer">• Neon_Kick_Sub808.wav</span>
-                      <span className="hover:text-primary cursor-pointer py-pad-micro">• HiHat_Closed_16th.wav</span>
-                      <span className="hover:text-primary cursor-pointer py-pad-micro">• Clap_Digital_Fat.wav</span>
-                    </div>
-                    <div className="flex items-center gap-pad-xs text-on-surface mt-pad-micro">
-                      <span className="material-symbols-outlined text-[12px]">folder</span>
-                      <span>Vocals &amp; Acapellas</span>
-                    </div>
-                    <div className="flex items-center gap-pad-xs text-on-surface mt-pad-micro">
-                      <span className="material-symbols-outlined text-[12px]">folder</span>
-                      <span>Guitars &amp; Plucks</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Mini Waveform Sample Previewer Dock */}
-                <div className="h-24 bg-surface-container p-pad-xs border-t border-surface-container-highest flex flex-col justify-between shrink-0">
-                  <div className="flex items-center justify-between font-label-sm text-[10px]">
-                    <span className="font-semibold text-secondary truncate">Neon_Kick_Sub808.wav</span>
-                    <span className="text-on-surface-variant font-mono">48k / 24b</span>
-                  </div>
-                  <div className="h-10 bg-surface-container-lowest rounded relative overflow-hidden flex items-center border border-surface-container-highest/60">
-                    <svg className="w-full h-full" preserveAspectRatio="none" viewBox="0 0 100 20">
-                      <path d="M 0 10 Q 5 0, 10 10 T 20 10 T 30 15 T 40 10 T 50 12 T 60 10 T 80 10 T 100 10" fill="none" stroke="#ffb690" strokeWidth="1.5" />
-                    </svg>
-                    <div className="absolute top-0 bottom-0 left-1/3 w-0.5 bg-primary shadow-[0_0_4px_#89ceff]" />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-pad-xs">
-                      <button className="w-5 h-5 rounded bg-secondary-container text-on-secondary-container flex items-center justify-center font-bold">
-                        <span className="material-symbols-outlined text-[12px]">play_arrow</span>
-                      </button>
-                      <button className="w-5 h-5 rounded bg-surface-container-highest text-on-surface flex items-center justify-center">
-                        <span className="material-symbols-outlined text-[12px]">repeat</span>
-                      </button>
-                    </div>
-                    <span className="font-label-sm text-[9px] text-tertiary">Auto-Play: ON</span>
-                  </div>
-                </div>
-              </aside>
-            </div>
-          </div>
-
-          {/* Page 2: Full Screen MixConsole Desk */}
-          <div className={`flex-1 h-full ${currentView === "mixer" ? "block" : "hidden"}`}>
-            <MixConsoleView
-              audioGraph={audioGraphRef.current}
-              stemStates={stems}
-              masterVolume={masterVolume}
-              djFilterCutoff={djFilterCutoff}
-              djFilterType={djFilterType}
-              djFilterQ={djFilterQ}
-              isDucking={isDucking}
-              duckingReduction={duckingReduction}
-              onStemVolumeChange={handleStemVolumeChange}
-              onStemMuteToggle={handleStemMuteToggle}
-              onStemSoloToggle={handleStemSoloToggle}
-              onStemPanChange={handleStemPanChange}
-              onMasterVolumeChange={handleMasterVolumeChange}
-              onDjFilterChange={handleDjFilterChange}
-              onDuckingToggle={handleDuckingToggle}
-              className="flex-1 h-full"
-            />
-          </div>
-
-          {/* Page 3: 5-Insert FX Rack View */}
-          <div className={`flex-1 h-full ${currentView === "fxrack" ? "block" : "hidden"}`}>
-            <FxRackView
-              audioGraph={audioGraphRef.current}
-              fxRackState={fxRackState}
-              onFxChange={handleStemFxChange}
-              className="flex-1 h-full"
-            />
-          </div>
-
-          {/* Page 4: Vision AI & Gesture Lab */}
-          <div className={`flex-1 h-full ${currentView === "gesture" ? "block" : "hidden"}`}>
-            <GestureLabView
-              gestureTracker={gestureTrackerRef.current}
-              gestureState={gestureState}
-              isGestureEnabled={isGestureEnabled}
-              onToggleGestureEnabled={setIsGestureEnabled}
-              onGestureStateChange={handleGestureStateChange}
-              className="flex-1 h-full"
-            />
-          </div>
-
-          {/* Page 5: Audio-Reactive Visual Stage */}
-          <div className={`flex-1 h-full ${currentView === "visualizer" ? "block" : "hidden"}`}>
-            <VisualStageView
-              audioGraph={audioGraphRef.current}
-              trackMetadata={trackMetadata}
-              currentTime={currentTime}
-              isPlaying={isPlaying}
-              className="flex-1 h-full"
-            />
-          </div>
-
-          {/* Page 6: Neural Demixing & Media Ingestion Lab */}
-          <div className={`flex-1 h-full ${currentView === "ingestion" ? "block" : "hidden"}`}>
-            <DemixLabView
-              trackMetadata={trackMetadata}
-              processStatus={processStatus}
-              hardwareInfo={hardwareInfo}
-              songs={songs}
-              onTrackLoaded={handleTrackLoaded}
-              onStatusChange={setProcessStatus}
-              className="flex-1 h-full"
-            />
-          </div>
-        </div>
-
-        {/* Bottom Dock: MixConsole (Only active on Arrangement view) */}
-        {currentView === "arrangement" && (
-          <section
-            className={`flex flex-col bg-surface-container-low border-t border-surface-container-highest shadow-[0_-4px_16px_rgba(0,0,0,0.6)] select-none transition-all duration-200 shrink-0 ${
-              isFooterCollapsed ? "h-7 overflow-hidden" : "h-[38vh]"
-            }`}
-          >
-            <div className="h-6 bg-surface-container px-pad-xs flex items-center justify-between border-b border-surface-container-highest font-label-sm text-[10px] text-on-surface-variant shrink-0">
-              <span className="font-semibold text-on-surface flex items-center gap-1">
-                <span className="material-symbols-outlined text-[13px] text-primary">equalizer</span>
-                MixConsole Dock
-              </span>
-              <button
-                onClick={() => setIsFooterCollapsed(!isFooterCollapsed)}
-                className="px-1.5 py-0.5 rounded hover:bg-surface-container-high text-on-surface-variant hover:text-on-surface text-[10px]"
-                title={isFooterCollapsed ? "Expand MixConsole" : "Collapse MixConsole"}
-              >
-                {isFooterCollapsed ? "▲ Expand" : "▼ Collapse"}
-              </button>
-            </div>
-            <div className="flex-1 min-h-0 overflow-hidden">
-              <MixConsoleView
-                audioGraph={audioGraphRef.current}
-                stemStates={stems}
-                masterVolume={masterVolume}
-                djFilterCutoff={djFilterCutoff}
-                djFilterType={djFilterType}
-                djFilterQ={djFilterQ}
-                isDucking={isDucking}
-                duckingReduction={duckingReduction}
-                onStemVolumeChange={handleStemVolumeChange}
-                onStemMuteToggle={handleStemMuteToggle}
-                onStemSoloToggle={handleStemSoloToggle}
-                onStemPanChange={handleStemPanChange}
-                onMasterVolumeChange={handleMasterVolumeChange}
-                onDjFilterChange={handleDjFilterChange}
-                onDuckingToggle={handleDuckingToggle}
-                className="h-full"
-              />
-            </div>
-          </section>
-        )}
+              </div>
+            </section>
+          )}
       </main>
 
       {/* 4. Studio Guide & Performance Take Modals */}

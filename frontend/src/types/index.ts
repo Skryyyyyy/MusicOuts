@@ -107,11 +107,14 @@ export interface StemCompConfig {
   knee: number; // 0 to 40dB
 }
 
+export type ReverbPresetType = 'hall' | 'room' | 'plate' | 'reverse' | 'cathedral';
+
 export interface StemReverbConfig {
   enabled: boolean;
   decay: number; // 0.5s to 5.0s
   preDelay: number; // 0.0 to 0.1s
   mix: number; // 0.0 (dry) to 1.0 (wet)
+  preset?: ReverbPresetType;
 }
 
 export interface StemDelayConfig {
@@ -199,13 +202,16 @@ export const DEFAULT_FX_RACK_STATE: FxRackState = {
   },
 };
 
-// ---------------- AUTOMATION TYPES ----------------
+// ---------------- AUTOMATION & KEYFRAMING TYPES ----------------
+
+export type KeyframeInterpolation = 'linear' | 'bezier' | 'hold';
 
 export interface AutomationPoint {
   id: string;
   time: number; // in seconds
   target: string; // e.g. 'vocals.volume', 'master.djFilterCutoff', 'drums.pan'
-  value: number; // 0.0 to 1.0 or actual Hz
+  value: number; // 0.0 to 1.5 for volume, -1.0 to 1.0 for pan, or actual Hz
+  curve?: KeyframeInterpolation; // 'linear' | 'bezier' | 'hold' (Adobe Premiere / AE style)
 }
 
 export interface AutomationLane {
@@ -253,6 +259,17 @@ export interface AudioClip {
   muted: boolean;
   name: string;
   color?: string;
+  isReversed?: boolean; // Reverse audio playback for this clip
+}
+
+export interface MediaPreviewData {
+  trackId: string;
+  title: string;
+  duration: number;
+  audioUrl: string;
+  videoUrl?: string | null;
+  hasVideo?: boolean;
+  thumbnail?: string | null;
 }
 
 export interface SongItem {

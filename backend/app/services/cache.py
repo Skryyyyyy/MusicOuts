@@ -32,10 +32,13 @@ def get_cached_stems(track_id: str) -> Optional[StemResult]:
             with open(manifest_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
 
-            vocals_path = Path(data.get("vocals_path", ""))
-            drums_path = Path(data.get("drums_path", ""))
-            bass_path = Path(data.get("bass_path", ""))
-            other_path = Path(data.get("other_path", ""))
+            duration = float(data.get("duration", 0.0) or 0.0)
+            if duration <= 0:
+                try:
+                    import soundfile as sf
+                    duration = round(sf.info(str(vocals_path)).duration, 2)
+                except Exception:
+                    duration = 0.0
 
             if (
                 vocals_path.exists()
@@ -50,6 +53,7 @@ def get_cached_stems(track_id: str) -> Optional[StemResult]:
                     bass_path=str(bass_path.resolve()),
                     other_path=str(other_path.resolve()),
                     is_cached=True,
+                    duration=duration,
                 )
         except Exception as e:
             logger.warning(f"Error reading stem manifest for {track_id}: {e}")
@@ -67,6 +71,13 @@ def get_cached_stems(track_id: str) -> Optional[StemResult]:
         if not matched:
             return None
 
+    duration = 0.0
+    try:
+        import soundfile as sf
+        duration = round(sf.info(found_paths["vocals"]).duration, 2)
+    except Exception:
+        pass
+
     return StemResult(
         id=track_id,
         vocals_path=found_paths["vocals"],
@@ -74,6 +85,7 @@ def get_cached_stems(track_id: str) -> Optional[StemResult]:
         bass_path=found_paths["bass"],
         other_path=found_paths["other"],
         is_cached=True,
+        duration=duration,
     )
 
 
@@ -89,6 +101,7 @@ def save_stem_manifest(track_id: str, stem_result: StemResult) -> Path:
         "drums_path": stem_result.drums_path,
         "bass_path": stem_result.bass_path,
         "other_path": stem_result.other_path,
+        "duration": getattr(stem_result, "duration", 0.0) or 0.0,
     }
 
     with open(manifest_path, "w", encoding="utf-8") as f:

@@ -34,8 +34,54 @@ def get_media_hash(content: bytes | str) -> str:
     return hashlib.md5(data).hexdigest()
 
 
+def resolve_media_target(url_or_query: str) -> tuple[str, str]:
+    """
+    Returns (download_target, detected_source_type).
+    Resolves YouTube, Spotify, Apple Music, SoundCloud, and search terms.
+    """
+    raw = url_or_query.strip()
+    if not raw:
+        return raw, "unknown"
+
+    # YouTube (regular or music)
+    if "youtube.com" in raw or "youtu.be" in raw:
+        return raw, "youtube"
+
+    # SoundCloud
+    if "soundcloud.com" in raw:
+        return raw, "soundcloud"
+
+    # Apple Music: extract title/album from slug
+    if "music.apple.com" in raw:
+        parts = [p for p in raw.split("?")[0].split("/") if p]
+        if "album" in parts:
+            idx = parts.index("album")
+            if len(parts) > idx + 1:
+                song_slug = parts[idx + 1].replace("-", " ")
+                return f"ytsearch1:{song_slug} official audio", "apple_music"
+        last_slug = parts[-1].replace("-", " ")
+        return f"ytsearch1:{last_slug} official audio", "apple_music"
+
+    # Spotify: extract track or search query
+    if "open.spotify.com" in raw or "spotify:" in raw:
+        clean = raw.split("?")[0].rstrip("/")
+        track_part = clean.split("/")[-1].replace("-", " ")
+        return f"ytsearch1:{track_part} audio", "spotify"
+
+    # Direct audio file URL
+    if any(raw.lower().endswith(ext) for ext in [".wav", ".mp3", ".flac", ".ogg", ".m4a"]):
+        return raw, "audio_url"
+
+    # Plain text title search query (e.g. "The Weeknd - Blinding Lights")
+    if not raw.startswith("http://") and not raw.startswith("https://"):
+        return f"ytsearch1:{raw} audio", "search"
+
+    return raw, "web"
+
+
 def extract_youtube_info(url: str) -> dict:
-    """Fast metadata extraction for YouTube URLs without downloading media."""
+    """Fast metadata extraction for media URLs without downloading media."""
+    target, source_type = resolve_media_target(url)
     ydl_opts = {
         "quiet": True,
         "no_warnings": True,
@@ -54,7 +100,7 @@ def extract_youtube_info(url: str) -> dict:
         ydl_opts["ffmpeg_location"] = FFMPEG_EXE
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(url, download=False)
+        info = ydl.extract_info(target, download=False)
         if not info:
             raise ValueError(f"Could not extract info from URL: {url}")
         
@@ -63,7 +109,7 @@ def extract_youtube_info(url: str) -> dict:
             info = info["entries"][0]
 
         video_id = info.get("id") or get_media_hash(url)
-        title = info.get("title") or f"YouTube Video {video_id}"
+        title = info.get("title") or f"{source_type.title()} Media {video_id}"
         duration = float(info.get("duration") or 0.0)
         thumbnail = info.get("thumbnail")
 
@@ -73,6 +119,8 @@ def extract_youtube_info(url: str) -> dict:
             "duration": duration,
             "thumbnail": thumbnail,
             "url": url,
+            "target": target,
+            "source_type": source_type,
             "channel": info.get("uploader") or info.get("channel"),
         }
 
@@ -94,6 +142,30 @@ def _convert_audio_to_wav(input_path: Path, output_wav_path: Path, sample_rate: 
         return output_wav_path.exists() and output_wav_path.stat().st_size > 0
     except Exception as exc:
         logger.error(f"FFmpeg audio conversion failed for {input_path}: {exc}")
+        return False
+
+
+def slice_audio(input_wav: Path, output_wav: Path, start_time: float, end_time: float) -> bool:
+    """Slices an audio file between start_time and end_time (in seconds) into output_wav."""
+    try:
+        output_wav.parent.mkdir(parents=True, exist_ok=True)
+        duration = max(0.5, end_time - start_time)
+        cmd = [
+            FFMPEG_EXE,
+            "-y",
+            "-ss", str(max(0.0, start_time)),
+            "-t", str(duration),
+            "-i", str(input_wav),
+            "-vn",
+            "-acodec", "pcm_s16le",
+            "-ar", "44100",
+            "-ac", "2",
+            str(output_wav)
+        ]
+        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
+        return output_wav.exists() and output_wav.stat().st_size > 0
+    except Exception as exc:
+        logger.error(f"FFmpeg audio slicing failed from {input_wav} ({start_time}-{end_time}): {exc}")
         return False
 
 
@@ -147,6 +219,8 @@ def download_from_youtube(url: str, progress_hook: Optional[Callable[[Dict], Non
     track_id = info["id"]
     title = info["title"]
     nominal_duration = info["duration"]
+    target = info.get("target") or url
+    source_type = info.get("source_type", "youtube")
 
     track_dir = DOWNLOADS_DIR / track_id
     track_dir.mkdir(parents=True, exist_ok=True)
@@ -164,7 +238,7 @@ def download_from_youtube(url: str, progress_hook: Optional[Callable[[Dict], Non
             audio_path=str(target_audio),
             video_path=video_path,
             duration=actual_duration,
-            source_type="youtube",
+            source_type=source_type,
         )
 
     # 1. Download best audio
@@ -189,7 +263,7 @@ def download_from_youtube(url: str, progress_hook: Optional[Callable[[Dict], Non
         ydl_audio_opts["progress_hooks"] = [progress_hook]
 
     with yt_dlp.YoutubeDL(ydl_audio_opts) as ydl:
-        ydl.download([url])
+        ydl.download([target])
 
     # Locate the downloaded raw audio file
     raw_audio_files = list(track_dir.glob("raw_audio.*"))

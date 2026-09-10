@@ -6,6 +6,7 @@ export type SynthInstrument = "piano" | "lead" | "bass808" | "pad";
 
 export interface VirtualSynthProps {
   audioGraph?: AudioGraphEngine | null;
+  onClose?: () => void;
   className?: string;
 }
 
@@ -25,7 +26,7 @@ const NOTES = [
   { note: "C5", freq: 523.25, isBlack: false, key: "k" },
 ];
 
-export const VirtualSynth: React.FC<VirtualSynthProps> = ({ className = "" }) => {
+export const VirtualSynth: React.FC<VirtualSynthProps> = ({ onClose, className = "" }) => {
   const [instrument, setInstrument] = useState<SynthInstrument>("lead");
   const [octave, setOctave] = useState<number>(0);
   const [activeNotes, setActiveNotes] = useState<Set<string>>(new Set());
@@ -177,6 +178,16 @@ export const VirtualSynth: React.FC<VirtualSynthProps> = ({ className = "" }) =>
               +
             </button>
           </div>
+
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="w-5 h-5 flex items-center justify-center rounded bg-[#101114] hover:bg-[#20222a] text-zinc-400 hover:text-white border border-[#262830] transition-colors text-[11px] font-bold"
+              title="Close Synthesizer"
+            >
+              ✕
+            </button>
+          )}
         </div>
       </div>
 

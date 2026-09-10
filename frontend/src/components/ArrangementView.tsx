@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
   Mic,
   Music,
@@ -10,6 +10,8 @@ import {
   Plus,
   Trash2,
   Copy,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import {
   StemType,
@@ -20,8 +22,12 @@ import {
   AutomationPoint,
   AudioClip,
   SongItem,
+  KeyframeInterpolation,
+  FxRackState,
+  ReverbPresetType,
 } from '../types';
 import { AudioGraphEngine } from '../engine/audioGraph';
+import { KeyframeLaneOverlay } from './KeyframeLaneOverlay';
 
 export interface ArrangementViewProps {
   audioGraph: AudioGraphEngine | null;
@@ -31,6 +37,7 @@ export interface ArrangementViewProps {
   isPlaying: boolean;
   isLooping: boolean;
   stemStates: Record<StemType, StemState>;
+  fxRackState?: FxRackState;
   gestureState?: GestureState;
   automationPoints?: AutomationPoint[];
   showAutomation?: boolean;
@@ -42,12 +49,27 @@ export interface ArrangementViewProps {
   onStemMuteToggle: (stem: StemType) => void;
   onStemSoloToggle: (stem: StemType) => void;
   onStemPanChange: (stem: StemType, pan: number) => void;
+  onToggleReverseStem?: (stem: StemType) => void;
+  onToggleReverseClip?: (clipId: string) => void;
+  onReverseAllStems?: () => void;
+  onStemReverbChange?: (stem: StemType, mix: number) => void;
+  onStemReverbPresetChange?: (stem: StemType, preset: ReverbPresetType) => void;
+  onStemReverbToggle?: (stem: StemType) => void;
   onSliceClip?: (clipId: string, time: number) => void;
   onTrimClip?: (clipId: string, newStartOffset: number, newDuration: number) => void;
   onMoveClip?: (clipId: string, newStartTime: number) => void;
   onDuplicateClip?: (clipId: string) => void;
   onDeleteClip?: (clipId: string) => void;
   onAddClip?: (songId: string, stem: StemType) => void;
+  onAddKeyframe?: (point: AutomationPoint) => void;
+  onUpdateKeyframe?: (pointId: string, updates: Partial<AutomationPoint>) => void;
+  onDeleteKeyframe?: (pointId: string) => void;
+  onResetStemKeyframes?: (stem: StemType, param?: string) => void;
+  onResetAllKeyframes?: () => void;
+  canUndo?: boolean;
+  canRedo?: boolean;
+  onUndo?: () => void;
+  onRedo?: () => void;
   className?: string;
 }
 
@@ -113,6 +135,7 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
   isPlaying,
   isLooping: _isLooping,
   stemStates,
+  fxRackState,
   gestureState,
   automationPoints = [],
   showAutomation = true,
@@ -124,10 +147,25 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
   onStemMuteToggle,
   onStemSoloToggle,
   onStemPanChange,
+  onToggleReverseStem,
+  onToggleReverseClip,
+  onReverseAllStems,
+  onStemReverbChange,
+  onStemReverbPresetChange,
+  onStemReverbToggle,
   onSliceClip,
   onDuplicateClip,
   onDeleteClip,
   onAddClip,
+  onAddKeyframe,
+  onUpdateKeyframe,
+  onDeleteKeyframe,
+  onResetStemKeyframes,
+  onResetAllKeyframes,
+  canUndo = false,
+  canRedo = false,
+  onUndo,
+  onRedo,
   className = '',
 }) => {
   const timelineContainerRef = useRef<HTMLDivElement | null>(null);
@@ -143,6 +181,19 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
   const [isIndependentMode, setIsIndependentMode] = useState<boolean>(true);
   const [selectedClipId, setSelectedClipId] = useState<string | null>(null);
   const [showMediaPool, setShowMediaPool] = useState<boolean>(false);
+  const [stemReversed, setStemReversed] = useState<Record<StemType, boolean>>({
+    vocals: false,
+    drums: false,
+    bass: false,
+    other: false,
+  });
+
+  // Keep reverse state in sync with audioGraph engine
+  useEffect(() => {
+    if (audioGraph) {
+      setStemReversed(audioGraph.getStemReversedStates());
+    }
+  }, [audioGraph, trackMetadata]);
   const [stemTimes, setStemTimes] = useState<Record<StemType, number>>({
     vocals: 0,
     drums: 0,
@@ -155,6 +206,110 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
     bass: 0,
     other: 0,
   });
+
+  const [activeParam, setActiveParam] = useState<Record<StemType, 'volume' | 'pan' | 'reverbMix' | 'delayMix'>>({
+    vocals: 'volume',
+    drums: 'volume',
+    bass: 'volume',
+    other: 'volume',
+  });
+  const [defaultEasing, setDefaultEasing] = useState<KeyframeInterpolation>('bezier');
+
+  // Interactive Timeline Placements & Dimensions Resizing State
+  const [headerWidth, setHeaderWidth] = useState<number>(270);
+  const [isResizingHeader, setIsResizingHeader] = useState<boolean>(false);
+  const [trackHeight, setTrackHeight] = useState<number>(96);
+  const [isResizingTrackHeight, setIsResizingTrackHeight] = useState<boolean>(false);
+
+  // Mouse drag handler for Track Header Width (clamped 190px - 480px)
+  const handleHeaderResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizingHeader(true);
+    const startX = e.clientX;
+    const startWidth = headerWidth;
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const delta = moveEvent.clientX - startX;
+      const newWidth = Math.min(Math.max(190, startWidth + delta), 480);
+      setHeaderWidth(newWidth);
+    };
+
+    const onMouseUp = () => {
+      setIsResizingHeader(false);
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  };
+
+  // Mouse drag handler for Track Lane Height (clamped 64px - 240px)
+  const handleTrackHeightResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizingTrackHeight(true);
+    const startY = e.clientY;
+    const startHeight = trackHeight;
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const delta = moveEvent.clientY - startY;
+      const newHeight = Math.min(Math.max(64, startHeight + delta), 240);
+      setTrackHeight(newHeight);
+    };
+
+    const onMouseUp = () => {
+      setIsResizingTrackHeight(false);
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  };
+
+  const PARAM_CONFIGS: Record<string, { name: string; min: number; max: number; default: number }> = {
+    volume: { name: 'Volume', min: 0.0, max: 1.5, default: 1.0 },
+    pan: { name: 'Pan', min: -1.0, max: 1.0, default: 0.0 },
+    reverbMix: { name: 'Reverb', min: 0.0, max: 1.0, default: 0.2 },
+    delayMix: { name: 'Delay', min: 0.0, max: 1.0, default: 0.2 },
+  };
+
+  const getCurrentParamVal = useCallback(
+    (stem: StemType, param: string): number => {
+      const st = stemStates[stem];
+      if (param === 'volume') return st?.volume ?? 1.0;
+      if (param === 'pan') return st?.pan ?? 0.0;
+      return 0.2;
+    },
+    [stemStates]
+  );
+
+  const getStemNavigator = useCallback(
+    (stem: StemType, param: string, time: number) => {
+      const target = `${stem}.${param}`;
+      const targetPoints = (automationPoints || [])
+        .filter((p) => p.target === target)
+        .sort((a, b) => a.time - b.time);
+
+      const threshold = 0.15;
+      let prev: AutomationPoint | null = null;
+      let current: AutomationPoint | null = null;
+      let next: AutomationPoint | null = null;
+
+      for (const p of targetPoints) {
+        if (Math.abs(p.time - time) <= threshold) {
+          current = p;
+        } else if (p.time < time - threshold) {
+          prev = p;
+        } else if (p.time > time + threshold && next === null) {
+          next = p;
+        }
+      }
+
+      return { prev, current, next, count: targetPoints.length };
+    },
+    [automationPoints]
+  );
 
   const stemLaneRefs = useRef<Record<StemType, HTMLDivElement | null>>({
     vocals: null,
@@ -345,41 +500,6 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
         ctx.fillRect(x, y, Math.max(1.2, barWidth - 1), barHeight);
       }
 
-      // Render Automation Curve Overlay
-      if (showAutomation && automationPoints && automationPoints.length > 0) {
-        const target = `${stem}.volume`;
-        const stemAutoPoints = automationPoints
-          .filter((p) => p.target === target)
-          .sort((a, b) => a.time - b.time);
-
-        if (stemAutoPoints.length > 0) {
-          ctx.beginPath();
-          ctx.strokeStyle = '#ec4899';
-          ctx.lineWidth = 2.5;
-          ctx.shadowColor = '#ec4899';
-          ctx.shadowBlur = 8;
-
-          for (let i = 0; i < stemAutoPoints.length; i++) {
-            const pt = stemAutoPoints[i];
-            const autoX = (pt.time / (duration || 180)) * width;
-            const autoY = height - (Math.min(1.5, Math.max(0, pt.value)) / 1.5) * (height * 0.85) - height * 0.08;
-            if (i === 0) ctx.moveTo(autoX, autoY);
-            else ctx.lineTo(autoX, autoY);
-          }
-          ctx.stroke();
-
-          for (const pt of stemAutoPoints) {
-            const autoX = (pt.time / (duration || 180)) * width;
-            const autoY = height - (Math.min(1.5, Math.max(0, pt.value)) / 1.5) * (height * 0.85) - height * 0.08;
-            ctx.beginPath();
-            ctx.arc(autoX, autoY, 3, 0, 2 * Math.PI);
-            ctx.fillStyle = '#ffffff';
-            ctx.shadowBlur = 4;
-            ctx.fill();
-          }
-        }
-      }
-
       ctx.restore();
     }
   }, [audioGraph, stemTimes, currentTime, duration, showAutomation, automationPoints]);
@@ -420,9 +540,9 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
   return (
     <div className={`bg-surface-container-lowest border border-surface-container-highest/50 flex flex-col overflow-hidden select-none ${className}`}>
       {/* 1. Primary Full-Width Arrangement Studio Action Toolbar */}
-      <div className="h-8 px-3 bg-surface-container border-b border-surface-container-highest flex items-center justify-between z-30 shrink-0 select-none">
-        <div className="flex items-center space-x-2.5">
-          <div className="flex items-center space-x-2 text-xs font-mono font-extrabold text-on-surface">
+      <div className="h-9 min-h-[36px] px-3 bg-surface-container border-b border-surface-container-highest flex items-center justify-between z-30 shrink-0 select-none overflow-x-auto gap-2">
+        <div className="flex items-center space-x-2 shrink-0">
+          <div className="flex items-center space-x-2 text-xs font-mono font-extrabold text-on-surface shrink-0">
             <Sliders className="w-3.5 h-3.5 text-primary" />
             <span className="uppercase tracking-wider font-sans">Arrangement Timeline</span>
           </div>
@@ -432,7 +552,7 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
           {/* Independent / Linked Mode Toggle Button */}
           <button
             onClick={() => setIsIndependentMode(!isIndependentMode)}
-            className={`flex items-center space-x-1.5 px-2.5 py-0.5 rounded text-[10px] font-mono border font-bold transition-all active:scale-95 ${
+            className={`flex items-center space-x-1.5 px-2.5 py-1 rounded text-[10px] font-mono border font-bold transition-all active:scale-95 shrink-0 ${
               isIndependentMode
                 ? 'bg-secondary-container text-on-secondary-container border-secondary-container shadow-[0_0_6px_rgba(236,106,6,0.6)]'
                 : 'bg-surface-container-high text-primary border-outline-variant'
@@ -443,19 +563,86 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
             <span>{isIndependentMode ? '⚡ INDEPENDENT STEM BARS' : '🔗 LINKED PLAYHEADS'}</span>
           </button>
 
-          {/* Re-align All Stem Offsets */}
-          {audioGraph && (
-            <button
-              onClick={() => {
-                audioGraph.resetStemOffsets();
-                const now = audioGraph.getCurrentTime();
-                setStemTimes({ vocals: now, drums: now, bass: now, other: now });
-              }}
-              className="flex items-center space-x-1 px-2.5 py-1 rounded-full text-[10px] bg-violet-500/[0.06] hover:bg-violet-500/[0.14] text-violet-200/70 hover:text-violet-100 border border-violet-500/[0.15] font-bold transition-all active:scale-95"
-              title="Re-align all stem playheads back to sync with master playhead"
-            >
-              <span>↺ ALIGN ALL</span>
-            </button>
+          {/* Global Batch Controls Group: ALIGN ALL | REV ALL | RESET ALL KF */}
+          <div className="flex items-center space-x-1.5 border-l border-white/[0.08] pl-2 shrink-0">
+            {/* Re-align All Stem Offsets */}
+            {audioGraph && (
+              <button
+                onClick={() => {
+                  audioGraph.resetStemOffsets();
+                  const now = audioGraph.getCurrentTime();
+                  setStemTimes({ vocals: now, drums: now, bass: now, other: now });
+                }}
+                className="flex items-center space-x-1 px-2.5 py-1 rounded text-[10px] font-mono font-bold bg-violet-500/10 hover:bg-violet-500/20 text-violet-300 border border-violet-500/30 transition-all active:scale-95 shadow-sm whitespace-nowrap shrink-0"
+                title="Re-align all stem playheads back to sync with master playhead"
+              >
+                <span>↺ ALIGN ALL</span>
+              </button>
+            )}
+
+            {/* Reverse All Stems Button */}
+            {(audioGraph || onReverseAllStems) && (
+              <button
+                onClick={() => {
+                  audioGraph?.reverseAllStems();
+                  onReverseAllStems?.();
+                  setStemReversed((prev) => {
+                    const anyNotRev = STEM_TYPES.some((s) => !prev[s]);
+                    return {
+                      vocals: anyNotRev,
+                      drums: anyNotRev,
+                      bass: anyNotRev,
+                      other: anyNotRev,
+                    };
+                  });
+                }}
+                className="flex items-center space-x-1 px-2.5 py-1 rounded text-[10px] font-mono font-bold bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 transition-all active:scale-95 shadow-sm whitespace-nowrap shrink-0"
+                title="Reverse Audio Playback across all 4 stems simultaneously"
+              >
+                <span>⇄ REV ALL</span>
+              </button>
+            )}
+
+            {/* Global Reset All Keyframes Button */}
+            {onResetAllKeyframes && (
+              <button
+                onClick={onResetAllKeyframes}
+                className="flex items-center space-x-1 px-2.5 py-1 rounded text-[10px] font-mono font-bold bg-red-500/10 hover:bg-red-500/20 text-red-300 border border-red-500/30 transition-all active:scale-95 shadow-sm whitespace-nowrap shrink-0"
+                title="Reset all automation keyframes across all stems"
+              >
+                <span>↺ RESET ALL KF</span>
+              </button>
+            )}
+          </div>
+
+          {/* Undo / Redo Toolbar Controls */}
+          {(onUndo || onRedo) && (
+            <div className="flex items-center space-x-1 border-l border-white/[0.08] pl-2">
+              <button
+                onClick={onUndo}
+                disabled={!canUndo}
+                className={`flex items-center space-x-1 px-2 py-0.5 rounded-full text-[10px] border font-bold transition-all active:scale-95 ${
+                  canUndo
+                    ? 'bg-white/[0.08] hover:bg-white/[0.16] text-white border-white/[0.2] shadow-sm cursor-pointer'
+                    : 'bg-white/[0.02] text-zinc-600 border-white/[0.05] cursor-not-allowed opacity-40'
+                }`}
+                title="Undo Action (Ctrl+Z)"
+              >
+                <span>↶ UNDO</span>
+              </button>
+              <button
+                onClick={onRedo}
+                disabled={!canRedo}
+                className={`flex items-center space-x-1 px-2 py-0.5 rounded-full text-[10px] border font-bold transition-all active:scale-95 ${
+                  canRedo
+                    ? 'bg-white/[0.08] hover:bg-white/[0.16] text-white border-white/[0.2] shadow-sm cursor-pointer'
+                    : 'bg-white/[0.02] text-zinc-600 border-white/[0.05] cursor-not-allowed opacity-40'
+                }`}
+                title="Redo Action (Ctrl+Y / Ctrl+Shift+Z)"
+              >
+                <span>↷ REDO</span>
+              </button>
+            </div>
           )}
 
           {/* Slice Clip Tool Button */}
@@ -501,6 +688,48 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
               <span>AUTO</span>
             </button>
           )}
+
+          {/* Track Height / Vertical Zoom Controls */}
+          <div className="flex items-center space-x-1 border-l border-white/[0.08] pl-2">
+            <span className="text-[9px] font-mono text-zinc-400 font-bold uppercase">H-ZOOM:</span>
+            <button
+              onClick={() => setTrackHeight((h) => Math.max(64, h - 16))}
+              className="px-1.5 py-0.5 rounded bg-white/[0.04] hover:bg-white/[0.12] text-zinc-300 hover:text-white border border-white/[0.08] text-[9px] font-mono font-bold transition-all active:scale-95"
+              title="Compact Track Height (Decrease Row Size)"
+            >
+              [ ▾ ]
+            </button>
+            <span className="text-[9px] font-mono text-cyan-400 font-bold min-w-[28px] text-center">
+              {trackHeight}px
+            </span>
+            <button
+              onClick={() => setTrackHeight((h) => Math.min(240, h + 16))}
+              className="px-1.5 py-0.5 rounded bg-white/[0.04] hover:bg-white/[0.12] text-zinc-300 hover:text-white border border-white/[0.08] text-[9px] font-mono font-bold transition-all active:scale-95"
+              title="Expand Track Height (Increase Row Size)"
+            >
+              [ ▴ ]
+            </button>
+            <div className="hidden sm:flex items-center space-x-0.5 ml-1">
+              {[
+                { label: 'S', h: 68 },
+                { label: 'M', h: 96 },
+                { label: 'L', h: 140 },
+              ].map((preset) => (
+                <button
+                  key={preset.label}
+                  onClick={() => setTrackHeight(preset.h)}
+                  className={`px-1 py-0.5 rounded text-[8px] font-mono font-bold border transition-all ${
+                    trackHeight === preset.h
+                      ? 'bg-primary/20 text-primary border-primary/50'
+                      : 'bg-white/[0.02] text-zinc-400 border-white/[0.05] hover:text-zinc-200'
+                  }`}
+                  title={`Set Track Height to ${preset.h}px`}
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
         <div className="flex items-center space-x-2 text-[10px] font-mono text-zinc-400">
@@ -548,12 +777,32 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
         {/* ROW 1: Marker Track / Arranger Section Lane */}
         <div className="flex border-b border-surface-container-highest/60 bg-surface-container-low h-7 shrink-0">
           {/* Left Label */}
-          <div className="w-56 sm:w-64 px-3 py-1 border-r border-surface-container-highest/60 bg-surface-container-low flex items-center justify-between text-[10px] font-mono font-bold text-on-surface-variant uppercase tracking-wider shrink-0">
-            <div className="flex items-center space-x-1.5">
-              <span className="w-2 h-2 rounded-full bg-primary shadow-[0_0_6px_#89ceff]" />
-              <span className="text-on-surface">Section Markers</span>
+          <div
+            style={{ width: `${headerWidth}px` }}
+            className="px-3 py-1 border-r border-surface-container-highest/60 bg-surface-container-low flex items-center justify-between text-[10px] font-mono font-bold text-on-surface-variant uppercase tracking-wider shrink-0 select-none"
+          >
+            <div className="flex items-center space-x-1.5 truncate">
+              <span className="w-2 h-2 rounded-full bg-primary shadow-[0_0_6px_#89ceff] shrink-0" />
+              <span className="text-on-surface truncate">Section Markers</span>
             </div>
-            <span className="text-[9px] text-outline font-mono">SECTIONS</span>
+            <span className="text-[9px] text-outline font-mono shrink-0">SECTIONS</span>
+          </div>
+
+          {/* Resizing Divider Handle */}
+          <div
+            onMouseDown={handleHeaderResizeStart}
+            className={`w-2 -mx-1 z-30 cursor-col-resize select-none flex items-center justify-center transition-colors group shrink-0 ${
+              isResizingHeader ? 'bg-primary/40' : 'hover:bg-primary/30'
+            }`}
+            title="Drag to resize track headers (<|>)"
+          >
+            <div
+              className={`w-[2px] h-full transition-all duration-150 ${
+                isResizingHeader
+                  ? 'bg-primary shadow-[0_0_10px_#89ceff]'
+                  : 'bg-surface-container-highest group-hover:bg-primary group-hover:shadow-[0_0_8px_#89ceff]'
+              }`}
+            />
           </div>
 
           {/* Marker Lane Chips (Separated Row) */}
@@ -578,9 +827,29 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
         {/* ROW 2: Measure & Timecode Ruler Grid */}
         <div className="flex h-7 bg-surface-container-low border-b border-surface-container-highest shrink-0">
           {/* Left Ruler Header */}
-          <div className="w-56 sm:w-64 px-3 py-1 border-r border-surface-container-highest/60 bg-surface-container flex items-center justify-between text-[10px] font-mono font-bold text-on-surface uppercase tracking-wider shrink-0">
-            <span className="font-semibold text-on-surface">Tracks (5 Active)</span>
-            <span className="text-[9px] text-outline">BAR / TIME</span>
+          <div
+            style={{ width: `${headerWidth}px` }}
+            className="px-3 py-1 border-r border-surface-container-highest/60 bg-surface-container flex items-center justify-between text-[10px] font-mono font-bold text-on-surface uppercase tracking-wider shrink-0 select-none"
+          >
+            <span className="font-semibold text-on-surface truncate">Tracks (5 Active)</span>
+            <span className="text-[9px] text-outline shrink-0">BAR / TIME</span>
+          </div>
+
+          {/* Resizing Divider Handle */}
+          <div
+            onMouseDown={handleHeaderResizeStart}
+            className={`w-2 -mx-1 z-30 cursor-col-resize select-none flex items-center justify-center transition-colors group shrink-0 ${
+              isResizingHeader ? 'bg-primary/40' : 'hover:bg-primary/30'
+            }`}
+            title="Drag to resize track headers (<|>)"
+          >
+            <div
+              className={`w-[2px] h-full transition-all duration-150 ${
+                isResizingHeader
+                  ? 'bg-primary shadow-[0_0_10px_#89ceff]'
+                  : 'bg-surface-container-highest group-hover:bg-primary group-hover:shadow-[0_0_8px_#89ceff]'
+              }`}
+            />
           </div>
 
           {/* Timeline Ruler Grid */}
@@ -641,11 +910,24 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
 
             const isLeftHandControlled = stem === 'vocals' && gestureState?.leftHand.present;
             const isRightHandControlled = stem !== 'vocals' && gestureState?.rightHand.present;
+            const param = activeParam[stem];
+            const activeTarget = `${stem}.${param}`;
+            const paramConfig = PARAM_CONFIGS[param] || PARAM_CONFIGS.volume;
+            const nav = getStemNavigator(stem, param, stemCurrentTime);
+            const isKeyframeAtPlayhead = nav.current !== null;
+            const currentParamVal = getCurrentParamVal(stem, param);
 
             return (
-              <div key={stem} className="flex min-h-[72px] h-track-h-expanded border-b border-surface-container-highest/60 hover:bg-surface-container/20 group transition-colors">
+              <div
+                key={stem}
+                style={{ height: `${trackHeight + (showAutomation ? 42 : 0)}px` }}
+                className="flex relative border-b border-surface-container-highest/60 hover:bg-surface-container/20 group transition-[height] duration-75"
+              >
                 {/* Left Column: Cubase Track Header Box */}
-                <div className="w-56 sm:w-64 p-2 bg-surface-container-low border-r border-surface-container-highest/60 flex flex-col justify-between relative shrink-0 shadow-sm">
+                <div
+                  style={{ width: `${headerWidth}px` }}
+                  className="p-2 bg-surface-container-low border-r border-surface-container-highest/60 flex flex-col justify-between relative shrink-0 shadow-sm select-none"
+                >
                   {/* Left Colored Spine Bar */}
                   <div
                     className="absolute left-0 top-0 bottom-0 w-1.5 shadow-sm"
@@ -689,6 +971,15 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
                           ↺ 0s
                         </button>
                       )}
+                      {onResetStemKeyframes && (
+                        <button
+                          onClick={() => onResetStemKeyframes(stem)}
+                          className="text-[8px] font-mono font-bold px-1 py-0.2 rounded bg-white/[0.04] hover:bg-red-500/20 text-zinc-400 hover:text-red-300 border border-white/[0.08] hover:border-red-500/30 transition-all shadow-sm"
+                          title={`Reset all automation keyframes for ${config.shortName}`}
+                        >
+                          ↺ KF
+                        </button>
+                      )}
                       {(isLeftHandControlled || isRightHandControlled) && (
                         <span className="text-[7px] font-mono font-bold px-1 py-0.2 rounded bg-error text-on-error animate-pulse shadow-sm">
                           GESTURE
@@ -723,6 +1014,25 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
                       S
                     </button>
 
+                    {/* Reverse Stem Audio Toggle */}
+                    <button
+                      onClick={() => {
+                        if (audioGraph) {
+                          audioGraph.toggleReverseStem(stem);
+                        }
+                        onToggleReverseStem?.(stem);
+                        setStemReversed((prev) => ({ ...prev, [stem]: !prev[stem] }));
+                      }}
+                      className={`px-1 h-5 rounded-sm text-[8px] font-bold font-mono border transition-all flex items-center justify-center shrink-0 ${
+                        stemReversed[stem]
+                          ? 'bg-amber-500 text-black border-amber-300 shadow-[0_0_8px_rgba(245,158,11,0.6)]'
+                          : 'bg-surface-container-highest text-on-surface-variant hover:text-on-surface'
+                      }`}
+                      title={`Reverse Audio for ${config.shortName}`}
+                    >
+                      ⇄ {stemReversed[stem] ? 'REV' : 'FWD'}
+                    </button>
+
                     {/* Volume Slider Capsule */}
                     <div className="flex-1 flex items-center space-x-1 bg-surface-container-lowest px-1.5 py-0.5 rounded border border-surface-container-highest/60 shadow-inner">
                       <span className="text-[7px] text-outline font-bold">VOL</span>
@@ -755,12 +1065,217 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
                     </div>
                   </div>
 
+                  {/* Arrangement Dedicated Reverb Controls Strip */}
+                  <div className="flex items-center space-x-1 text-xs font-mono pl-1.5 pt-1">
+                    <button
+                      onClick={() => {
+                        const curRev = fxRackState?.[stem]?.reverb || { enabled: false, mix: 0.25, decay: 2.0 };
+                        const nextEnabled = !curRev.enabled;
+                        audioGraph?.setStemReverb(stem, { enabled: nextEnabled });
+                        onStemReverbToggle?.(stem);
+                      }}
+                      className={`px-1.5 h-4 rounded text-[8px] font-bold font-mono border transition-all flex items-center justify-center shrink-0 ${
+                        fxRackState?.[stem]?.reverb?.enabled
+                          ? 'bg-cyan-500/20 text-cyan-300 border-cyan-400 shadow-[0_0_6px_rgba(6,182,212,0.5)]'
+                          : 'bg-surface-container-highest text-zinc-500 border-surface-container-highest hover:text-zinc-300'
+                      }`}
+                      title={`Toggle ${config.shortName} Reverb Bypass`}
+                    >
+                      REV
+                    </button>
+
+                    {/* Reverb Wet Mix Slider */}
+                    <div className="flex-1 flex items-center space-x-1 bg-surface-container-lowest px-1.5 py-0.5 rounded border border-surface-container-highest/60 shadow-inner">
+                      <span className="text-[7px] text-cyan-400 font-bold">WET</span>
+                      <input
+                        type="range"
+                        min="0"
+                        max="1.0"
+                        step="0.01"
+                        value={fxRackState?.[stem]?.reverb?.mix ?? 0.25}
+                        onChange={(e) => {
+                          const mix = parseFloat(e.target.value);
+                          audioGraph?.setStemReverb(stem, { mix, enabled: mix > 0.01 });
+                          onStemReverbChange?.(stem, mix);
+                        }}
+                        className="w-full h-1 bg-surface-container-highest rounded appearance-none cursor-pointer accent-cyan-400"
+                      />
+                      <span className="text-[7px] text-cyan-300 font-mono w-5 text-right font-bold">
+                        {Math.round((fxRackState?.[stem]?.reverb?.mix ?? 0.25) * 100)}%
+                      </span>
+                    </div>
+
+                    {/* Reverb Impulse Preset Selector */}
+                    <select
+                      value={fxRackState?.[stem]?.reverb?.preset || 'hall'}
+                      onChange={(e) => {
+                        const p = e.target.value as ReverbPresetType;
+                        audioGraph?.setStemReverb(stem, { preset: p });
+                        onStemReverbPresetChange?.(stem, p);
+                      }}
+                      className="bg-[#0e0c20] text-cyan-300 font-bold border border-cyan-500/30 rounded px-1 h-4 text-[8px] appearance-none cursor-pointer hover:border-cyan-400 shadow-sm shrink-0"
+                      title="Select Reverb Preset: Hall, Room, Plate, Reverse Swell, Cathedral"
+                    >
+                      <option value="hall">Hall</option>
+                      <option value="room">Room</option>
+                      <option value="plate">Plate</option>
+                      <option value="reverse">Rev Swell</option>
+                      <option value="cathedral">Cathedral</option>
+                    </select>
+                  </div>
+
+                  {/* Adobe Premiere-Style Keyframe Toolbar */}
+                  {showAutomation && (
+                    <div className="flex items-center justify-between pl-1.5 pt-1 text-[10px] font-mono border-t border-white/[0.08] mt-1 shrink-0">
+                      {/* Parameter Selector */}
+                      <select
+                        value={param}
+                        onChange={(e) =>
+                          setActiveParam((prev) => ({
+                            ...prev,
+                            [stem]: e.target.value as 'volume' | 'pan' | 'reverbMix' | 'delayMix',
+                          }))
+                        }
+                        className="bg-[#0e0c20] text-cyan-300 font-bold border border-cyan-500/30 rounded px-1.5 py-0.5 text-[9px] appearance-none cursor-pointer hover:border-cyan-400 focus:outline-none shadow-sm"
+                        title="Select Active Automation Parameter"
+                      >
+                        <option value="volume">Vol (Level)</option>
+                        <option value="pan">Pan (L/R)</option>
+                        <option value="reverbMix">Reverb (Wet)</option>
+                        <option value="delayMix">Delay (Wet)</option>
+                      </select>
+
+                      {/* Adobe Keyframe Navigator: [ ◀ ] [ ◆ / ◇ ] [ ▶ ] */}
+                      <div className="flex items-center space-x-1 bg-[#090817] px-1 py-0.5 rounded border border-cyan-500/30 shadow-inner">
+                        {/* Previous Keyframe Button */}
+                        <button
+                          onClick={() => nav.prev && onSeek(nav.prev.time)}
+                          disabled={!nav.prev}
+                          className={`p-0.5 rounded transition-all ${
+                            nav.prev
+                              ? 'text-cyan-400 hover:bg-cyan-500/20 active:scale-95'
+                              : 'text-zinc-600 cursor-not-allowed opacity-30'
+                          }`}
+                          title={nav.prev ? `Jump to previous keyframe (${formatRulerTime(nav.prev.time)})` : 'No previous keyframe'}
+                        >
+                          <ChevronLeft className="w-3 h-3" />
+                        </button>
+
+                        {/* Adobe Diamond Keyframe Toggle */}
+                        <button
+                          onClick={() => {
+                            if (isKeyframeAtPlayhead && nav.current) {
+                              onDeleteKeyframe?.(nav.current.id);
+                            } else {
+                              onAddKeyframe?.({
+                                id: `kf_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+                                time: Math.round(stemCurrentTime * 100) / 100,
+                                target: activeTarget,
+                                value: currentParamVal,
+                                curve: defaultEasing,
+                              });
+                            }
+                          }}
+                          className={`p-0.5 rounded transition-all active:scale-90 ${
+                            isKeyframeAtPlayhead
+                              ? 'text-cyan-300 hover:text-cyan-200'
+                              : 'text-zinc-500 hover:text-zinc-300'
+                          }`}
+                          title={
+                            isKeyframeAtPlayhead
+                              ? 'Remove keyframe at current playhead position'
+                              : 'Add keyframe at current playhead position'
+                          }
+                        >
+                          <svg className="w-3 h-3" viewBox="0 0 16 16">
+                            <polygon
+                              points="8,1 15,8 8,15 1,8"
+                              fill={isKeyframeAtPlayhead ? '#00f2ff' : 'transparent'}
+                              stroke={isKeyframeAtPlayhead ? '#00f2ff' : 'currentColor'}
+                              strokeWidth="2"
+                              filter={isKeyframeAtPlayhead ? 'drop-shadow(0 0 4px #00f2ff)' : undefined}
+                            />
+                          </svg>
+                        </button>
+
+                        {/* Next Keyframe Button */}
+                        <button
+                          onClick={() => nav.next && onSeek(nav.next.time)}
+                          disabled={!nav.next}
+                          className={`p-0.5 rounded transition-all ${
+                            nav.next
+                              ? 'text-cyan-400 hover:bg-cyan-500/20 active:scale-95'
+                              : 'text-zinc-600 cursor-not-allowed opacity-30'
+                          }`}
+                          title={nav.next ? `Jump to next keyframe (${formatRulerTime(nav.next.time)})` : 'No next keyframe'}
+                        >
+                          <ChevronRight className="w-3 h-3" />
+                        </button>
+                      </div>
+
+                      {/* Easing Mode Quick Toggle Pill */}
+                      <button
+                        onClick={() => {
+                          const nextEasing: Record<KeyframeInterpolation, KeyframeInterpolation> = {
+                            bezier: 'linear',
+                            linear: 'hold',
+                            hold: 'bezier',
+                          };
+                          setDefaultEasing(nextEasing[defaultEasing]);
+                        }}
+                        className="text-[8px] font-mono font-bold px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 hover:bg-cyan-500/20 transition-all uppercase"
+                        title={`Default Easing: ${defaultEasing} (Click to toggle Bezier/Linear/Hold)`}
+                      >
+                        {defaultEasing === 'bezier' ? '∿ BEZ' : defaultEasing === 'linear' ? '⟋ LIN' : '⎍ HLD'}
+                      </button>
+
+                      {/* Reset Keyframes for this stem & parameter */}
+                      {onResetStemKeyframes && (
+                        <button
+                          onClick={() => onResetStemKeyframes(stem, param)}
+                          className="text-[8px] font-mono font-bold px-1.5 py-0.5 rounded bg-red-500/10 hover:bg-red-500/25 text-red-300 border border-red-500/30 transition-all active:scale-95 shrink-0"
+                          title={`Reset ${paramConfig.name} keyframes for ${config.shortName}`}
+                        >
+                          ↺ RESET KF
+                        </button>
+                      )}
+                    </div>
+                  )}
+
                   {/* Real-time Peak VU Meter Strip */}
                   <div className="w-full h-1 bg-surface-container-lowest rounded-full overflow-hidden border border-surface-container-highest/60 pl-1.5 shadow-inner">
                     <div
                       className="h-full bg-gradient-to-r from-tertiary via-secondary to-error transition-all duration-75 shadow-[0_0_6px_rgba(74,225,118,0.5)]"
                       style={{ width: `${Math.min(100, vu * 100)}%` }}
                     />
+                  </div>
+                </div>
+
+                {/* Resizing Divider Handle between Track Header & Timeline */}
+                <div
+                  onMouseDown={handleHeaderResizeStart}
+                  className={`w-2 -mx-1 z-30 cursor-col-resize select-none flex items-center justify-center transition-colors group shrink-0 ${
+                    isResizingHeader ? 'bg-primary/40' : 'hover:bg-primary/30'
+                  }`}
+                  title="Drag to resize track headers (<|>)"
+                >
+                  <div
+                    className={`w-[2px] h-full transition-all duration-150 ${
+                      isResizingHeader
+                        ? 'bg-primary shadow-[0_0_10px_#89ceff]'
+                        : 'bg-surface-container-highest group-hover:bg-primary group-hover:shadow-[0_0_8px_#89ceff]'
+                    }`}
+                  />
+                  <div
+                    className={`absolute flex flex-col items-center gap-0.5 py-1 px-0.5 rounded bg-surface-container-high/90 border border-surface-container-highest shadow-md transition-all duration-150 pointer-events-none ${
+                      isResizingHeader
+                        ? 'opacity-100 border-primary shadow-[0_0_8px_#89ceff]'
+                        : 'opacity-0 group-hover:opacity-100 group-hover:border-primary/60'
+                    }`}
+                  >
+                    <div className="w-0.5 h-0.5 rounded-full bg-primary" />
+                    <div className="w-0.5 h-0.5 rounded-full bg-primary" />
+                    <div className="w-0.5 h-0.5 rounded-full bg-primary" />
                   </div>
                 </div>
 
@@ -810,6 +1325,22 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
                           <div className="h-3.5 bg-primary-container/20 px-1 rounded-sm flex items-center justify-between text-[9px] font-mono font-bold text-on-surface">
                             <span className="truncate max-w-[100px] text-primary">{clip.name || clip.songTitle}</span>
                             <div className="flex items-center space-x-1">
+                              {onToggleReverseClip && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onToggleReverseClip(clip.id);
+                                  }}
+                                  className={`px-1 py-0.2 rounded text-[7.5px] font-bold border transition-colors ${
+                                    clip.isReversed
+                                      ? 'bg-amber-500/30 text-amber-300 border-amber-500/60 shadow-[0_0_6px_rgba(245,158,11,0.4)]'
+                                      : 'bg-surface-container-lowest/60 text-on-surface-variant border-surface-container-highest/60 hover:text-amber-300'
+                                  }`}
+                                  title={clip.isReversed ? 'Reversed (Click to un-reverse)' : 'Reverse clip audio'}
+                                >
+                                  ⇄ REV
+                                </button>
+                              )}
                               {onDuplicateClip && (
                                 <button
                                   onClick={(e) => {
@@ -888,8 +1419,36 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
                       <span className="text-outline">[{config.shortName}.WAV]</span>
                       <span className="font-mono text-primary ml-1 font-extrabold">[{formatRulerTime(stemCurrentTime)}]</span>
                     </div>
+
+                    {/* Adobe Keyframe Automation Lane Overlay */}
+                    {showAutomation && (
+                      <KeyframeLaneOverlay
+                        target={activeTarget}
+                        points={automationPoints}
+                        duration={duration}
+                        currentTime={stemCurrentTime}
+                        minVal={paramConfig.min}
+                        maxVal={paramConfig.max}
+                        defaultVal={paramConfig.default}
+                        color={config.color}
+                        currentParamValue={currentParamVal}
+                        onAddPoint={(pt) => onAddKeyframe?.(pt)}
+                        onUpdatePoint={(id, updates) => onUpdateKeyframe?.(id, updates)}
+                        onDeletePoint={(id) => onDeleteKeyframe?.(id)}
+                        onSeek={onSeek}
+                      />
+                    )}
                   </div>
                 </div>
+
+                {/* Interactive Row Height Resize Handle at bottom of track */}
+                <div
+                  onMouseDown={handleTrackHeightResizeStart}
+                  className={`absolute bottom-0 left-0 right-0 h-1.5 z-20 cursor-row-resize select-none transition-colors ${
+                    isResizingTrackHeight ? 'bg-primary/40' : 'hover:bg-primary/20'
+                  }`}
+                  title="Drag to resize track row height (v/^)"
+                />
               </div>
             );
           })}

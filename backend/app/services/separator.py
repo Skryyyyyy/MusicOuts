@@ -242,6 +242,16 @@ def separate_audio_stems(
             stem_paths[source_name] = str(output_stem_path.resolve())
 
         # 7. Construct result & save manifest
+        duration = 0.0
+        first_stem = stem_paths.get("vocals") or next(iter(stem_paths.values()), None)
+        if first_stem and Path(first_stem).exists():
+            try:
+                duration = round(sf.info(first_stem).duration, 2)
+            except Exception:
+                duration = round(total_samples / model.samplerate, 2)
+        elif model.samplerate and total_samples:
+            duration = round(total_samples / model.samplerate, 2)
+
         stem_result = StemResult(
             id=track_id,
             vocals_path=stem_paths.get("vocals", ""),
@@ -249,6 +259,7 @@ def separate_audio_stems(
             bass_path=stem_paths.get("bass", ""),
             other_path=stem_paths.get("other", ""),
             is_cached=False,
+            duration=duration,
         )
         save_stem_manifest(track_id, stem_result)
 
