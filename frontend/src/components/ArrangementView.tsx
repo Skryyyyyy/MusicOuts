@@ -418,13 +418,13 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
   };
 
   return (
-    <div className={`bg-[#141518] border border-[#262830] rounded-lg flex flex-col overflow-hidden shadow-2xl select-none ${className}`}>
+    <div className={`bg-[#000000] border border-white/[0.08] rounded-2xl flex flex-col overflow-hidden shadow-[0_10px_40px_rgba(0,0,0,0.8)] backdrop-blur-3xl select-none ${className}`}>
       {/* 1. Primary Full-Width Arrangement Studio Action Toolbar */}
-      <div className="h-9 px-3 bg-[#181920] border-b border-[#262830] flex items-center justify-between z-30 shrink-0 select-none">
-        <div className="flex items-center space-x-2">
-          <div className="flex items-center space-x-1.5 text-xs font-mono font-bold text-zinc-200">
+      <div className="h-11 px-4 bg-[#0a0a0f]/95 border-b border-white/[0.08] flex items-center justify-between z-30 shrink-0 select-none">
+        <div className="flex items-center space-x-2.5">
+          <div className="flex items-center space-x-2 text-xs font-mono font-extrabold text-white">
             <Sliders className="w-3.5 h-3.5 text-cyan-400" />
-            <span className="uppercase tracking-wider">Arrangement Timeline</span>
+            <span className="uppercase tracking-wider font-sans">Arrangement Timeline</span>
           </div>
 
           <span className="text-zinc-700">|</span>
@@ -432,14 +432,14 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
           {/* Independent / Linked Mode Toggle Button */}
           <button
             onClick={() => setIsIndependentMode(!isIndependentMode)}
-            className={`flex items-center space-x-1.5 px-2.5 py-1 rounded text-[10px] border font-bold transition-all ${
+            className={`flex items-center space-x-1.5 px-3 py-1 rounded-full text-[10px] font-mono border font-bold transition-all active:scale-95 ${
               isIndependentMode
-                ? 'bg-amber-500/15 text-amber-300 border-amber-500/40 shadow-sm shadow-amber-500/10'
-                : 'bg-cyan-600/90 text-white border-cyan-400 shadow-sm'
+                ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 shadow-[0_0_10px_rgba(245,158,11,0.3)]'
+                : 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40 shadow-[0_0_10px_rgba(0,229,255,0.3)]'
             }`}
             title="Toggle Independent Stem Playhead Scrubbing vs Linked Playheads"
           >
-            <Sliders className="w-3 h-3" />
+            <Sliders className="w-3 h-3 text-cyan-400" />
             <span>{isIndependentMode ? '⚡ INDEPENDENT STEM BARS' : '🔗 LINKED PLAYHEADS'}</span>
           </button>
 
@@ -451,7 +451,7 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
                 const now = audioGraph.getCurrentTime();
                 setStemTimes({ vocals: now, drums: now, bass: now, other: now });
               }}
-              className="flex items-center space-x-1 px-2 py-1 rounded text-[10px] bg-[#1d1f27] hover:bg-[#282b36] text-zinc-300 hover:text-white border border-zinc-700 font-bold transition-all"
+              className="flex items-center space-x-1 px-2.5 py-1 rounded-full text-[10px] bg-white/[0.04] hover:bg-white/[0.08] text-zinc-300 hover:text-white border border-white/[0.08] font-bold transition-all active:scale-95"
               title="Re-align all stem playheads back to sync with master playhead"
             >
               <span>↺ ALIGN ALL</span>
@@ -462,7 +462,7 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
           {onSliceClip && (
             <button
               onClick={handleSliceCurrentClip}
-              className="flex items-center space-x-1 px-2 py-1 rounded text-[10px] bg-[#1d1f27] hover:bg-[#282b36] text-amber-400 hover:text-amber-300 border border-amber-500/30 font-bold transition-all"
+              className="flex items-center space-x-1 px-2.5 py-1 rounded-full text-[10px] bg-white/[0.04] hover:bg-amber-500/20 text-amber-400 hover:text-amber-300 border border-amber-500/30 font-bold transition-all active:scale-95"
               title="Slice / Split Active Clip at Playhead (S)"
             >
               <Scissors className="w-3 h-3" />
@@ -474,10 +474,10 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
           {songs.length > 0 && (
             <button
               onClick={() => setShowMediaPool(!showMediaPool)}
-              className={`flex items-center space-x-1.5 px-2.5 py-1 rounded text-[10px] border font-bold transition-all ${
+              className={`flex items-center space-x-1.5 px-3 py-1 rounded-full text-[10px] border font-bold transition-all active:scale-95 ${
                 showMediaPool
                   ? 'bg-cyan-600 text-white border-cyan-400 shadow-sm'
-                  : 'bg-[#1d1f27] text-zinc-300 border-zinc-700 hover:text-white'
+                  : 'bg-white/[0.04] text-zinc-300 border-white/[0.08] hover:text-white'
               }`}
               title="Open Multi-Song Media Pool"
             >
@@ -490,10 +490,10 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
           {onToggleAutomation && (
             <button
               onClick={onToggleAutomation}
-              className={`flex items-center space-x-1 px-2 py-1 rounded text-[10px] border font-bold transition-all ${
+              className={`flex items-center space-x-1 px-2.5 py-1 rounded-full text-[10px] border font-bold transition-all active:scale-95 ${
                 showAutomation
                   ? 'bg-pink-500/20 text-pink-300 border-pink-500/50 shadow-sm'
-                  : 'bg-[#1d1f27] text-zinc-400 border-zinc-700 hover:text-zinc-200'
+                  : 'bg-white/[0.04] text-zinc-400 border-white/[0.08] hover:text-zinc-200'
               }`}
               title="Toggle Automation Curves Overlay"
             >
@@ -512,25 +512,25 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
 
       {/* Multi-Song Media Pool Drawer */}
       {showMediaPool && songs.length > 0 && (
-        <div className="bg-[#101115] border-b border-[#242630] p-2.5 flex items-center space-x-3 overflow-x-auto text-xs font-mono shrink-0">
+        <div className="bg-[#050508] border-b border-white/[0.06] p-2.5 flex items-center space-x-3 overflow-x-auto text-xs font-mono shrink-0">
           <span className="text-zinc-400 font-bold uppercase tracking-wider text-[10px] shrink-0">
             Project Song Pool:
           </span>
           {songs.map((song) => (
             <div
               key={song.id}
-              className="flex items-center space-x-2 bg-[#171820] border border-[#2b2d38] px-2.5 py-1 rounded-lg shrink-0"
+              className="flex items-center space-x-2 bg-[#0a0a10] border border-white/[0.08] px-3 py-1 rounded-full shrink-0"
             >
               <span className="w-2 h-2 rounded-full" style={{ backgroundColor: song.color }} />
               <span className="text-zinc-200 font-bold text-[11px]">{song.title}</span>
               <span className="text-zinc-500 text-[10px]">({formatRulerTime(song.duration)})</span>
               {onAddClip && (
-                <div className="flex items-center space-x-1 pl-1 border-l border-zinc-700">
+                <div className="flex items-center space-x-1 pl-1.5 border-l border-zinc-700">
                   {STEM_TYPES.map((s) => (
                     <button
                       key={s}
                       onClick={() => onAddClip(song.id, s)}
-                      className="px-1.5 py-0.5 bg-[#20222c] hover:bg-cyan-700 text-[9px] text-zinc-300 hover:text-white rounded uppercase font-bold"
+                      className="px-1.5 py-0.5 bg-white/[0.05] hover:bg-cyan-500 hover:text-black text-[9px] text-zinc-300 rounded uppercase font-bold transition-all"
                       title={`Add ${s} clip to timeline`}
                     >
                       +{s[0].toUpperCase()}
@@ -544,14 +544,14 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
       )}
 
       {/* 2. Structured Multi-Row Timeline Container */}
-      <div className="flex flex-col flex-1 overflow-y-auto">
+      <div className="flex flex-col flex-1 overflow-y-auto bg-[#000000]">
         {/* ROW 1: Marker Track / Arranger Section Lane */}
-        <div className="flex border-b border-[#242630] bg-[#16171d] h-7 shrink-0">
+        <div className="flex border-b border-white/[0.06] bg-[#050508] h-7 shrink-0">
           {/* Left Label */}
-          <div className="w-72 sm:w-80 px-3 py-1 border-r border-[#262830] flex items-center justify-between text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-wider shrink-0">
+          <div className="w-72 sm:w-80 px-3.5 py-1 border-r border-white/[0.06] bg-[#0a0a10] flex items-center justify-between text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-wider shrink-0">
             <div className="flex items-center space-x-1.5">
-              <span className="w-2 h-2 rounded-full bg-cyan-400" />
-              <span>Section Markers</span>
+              <span className="w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_6px_rgba(0,229,255,0.8)]" />
+              <span className="text-white">Section Markers</span>
             </div>
             <span className="text-[9px] text-zinc-500 font-mono">SECTIONS</span>
           </div>
@@ -566,7 +566,7 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
                   onSeek(m.ratio * (duration || 180));
                 }}
                 style={{ left: `calc(${m.ratio * 100}% - 24px)` }}
-                className={`absolute px-2 py-0.5 rounded text-[8px] font-mono font-bold border transition-all shadow-sm ${m.color}`}
+                className={`absolute px-2.5 py-0.5 rounded-full text-[8px] font-mono font-extrabold border transition-all shadow-sm active:scale-95 ${m.color}`}
                 title={`Jump to ${m.name} (${formatRulerTime(m.ratio * (duration || 180))})`}
               >
                 {m.name}
@@ -576,10 +576,10 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
         </div>
 
         {/* ROW 2: Measure & Timecode Ruler Grid */}
-        <div className="flex h-8 bg-[#0c0d10] border-b border-[#262830] shrink-0">
+        <div className="flex h-8 bg-[#000000] border-b border-white/[0.06] shrink-0">
           {/* Left Ruler Header */}
-          <div className="w-72 sm:w-80 px-3 py-1 border-r border-[#262830] flex items-center justify-between text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-wider shrink-0">
-            <span className="text-zinc-300">Measure Ruler</span>
+          <div className="w-72 sm:w-80 px-3.5 py-1 border-r border-white/[0.06] bg-[#0a0a10] flex items-center justify-between text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-wider shrink-0">
+            <span className="text-zinc-300 font-bold">Measure Ruler</span>
             <span className="text-[9px] text-zinc-500">BAR / TIME</span>
           </div>
 
@@ -587,12 +587,12 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
           <div
             ref={timelineContainerRef}
             onMouseDown={handleMouseDown}
-            className={`relative flex-1 h-full bg-[#0a0b0e] overflow-hidden group ${
+            className={`relative flex-1 h-full bg-[#030305] overflow-hidden group ${
               isScrubbing ? 'cursor-grabbing' : 'cursor-pointer'
             }`}
             title="Global Timeline Ruler - Click or drag to seek master timeline"
           >
-            {/* Sub-beat Ruler Grid Marks (Clean spacing, no collision) */}
+            {/* Sub-beat Ruler Grid Marks */}
             <div className="absolute inset-0 flex justify-between px-2 pointer-events-none">
               {rulerTicks.map((ratio, idx) => {
                 const tickSecs = ratio * (duration || 180);
@@ -601,11 +601,11 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
                   <div key={idx} className="flex flex-col justify-between h-full py-0.5">
                     <span className="text-[9px] font-mono text-zinc-400 font-bold">
                       {`Bar ${barNum.toString().padStart(2, '0')}`}
-                      <span className="text-[8px] text-zinc-500 ml-1 font-normal">
+                      <span className="text-[8px] text-zinc-600 ml-1 font-normal">
                         {formatRulerTime(tickSecs)}
                       </span>
                     </span>
-                    <div className="w-px h-1.5 bg-zinc-700 self-start" />
+                    <div className="w-px h-1.5 bg-zinc-800 self-start" />
                   </div>
                 );
               })}
@@ -618,7 +618,7 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
 
             {/* Master Playhead Locator Flag */}
             <div
-              className="absolute top-0 bottom-0 w-1 bg-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.8)] pointer-events-none z-30"
+              className="absolute top-0 bottom-0 w-1 bg-cyan-400 shadow-[0_0_10px_rgba(0,229,255,0.8)] pointer-events-none z-30"
               style={{ left: `calc(${progressPercent}% - 1px)` }}
             >
               <div className="w-2.5 h-2.5 bg-cyan-400 rotate-45 -translate-x-[3px] -translate-y-1 shadow-md" />
@@ -627,7 +627,7 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
         </div>
 
         {/* ROWS 3-6: 4-Stem Multi-Track Arrangement Lanes */}
-        <div className="flex-1 flex flex-col divide-y divide-[#22242c] bg-[#0d0e11]">
+        <div className="flex-1 flex flex-col divide-y divide-white/[0.04] bg-[#000000]">
           {STEM_TYPES.map((stem) => {
             const config = STEM_CONFIGS[stem];
             const state = stemStates[stem] || { volume: 1.0, muted: false, solo: false, pan: 0 };
@@ -642,67 +642,70 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
             const isRightHandControlled = stem !== 'vocals' && gestureState?.rightHand.present;
 
             return (
-              <div key={stem} className="flex min-h-[105px] group transition-colors hover:bg-[#14151a]">
-                {/* Left Column: Track Header Strip (Strictly matched w-72 sm:w-80 width) */}
-                <div className="w-72 sm:w-80 p-3 bg-[#17181d] border-r border-[#262830] flex flex-col justify-between space-y-1.5 relative shrink-0">
+              <div key={stem} className="flex min-h-[110px] group transition-colors hover:bg-white/[0.01]">
+                {/* Left Column: Splice iPad Track Header Card */}
+                <div className="w-72 sm:w-80 p-3.5 bg-[#0a0a10]/95 border-r border-white/[0.06] flex flex-col justify-between space-y-2 relative shrink-0 shadow-sm">
                   {/* Left Colored Spine Bar */}
                   <div
-                    className="absolute left-0 top-0 bottom-0 w-1"
-                    style={{ backgroundColor: config.color }}
+                    className="absolute left-0 top-2 bottom-2 w-1.5 rounded-r-full shadow-sm"
+                    style={{ backgroundColor: config.color, boxShadow: `0 0 10px ${config.color}80` }}
                   />
 
-                  {/* Track Title, Timecode & Quick Alignment Reset */}
-                  <div className="flex items-center justify-between pl-1.5">
-                    <div className="flex items-center space-x-2 truncate">
-                      <div className="p-1 rounded bg-[#101114] border border-[#262830] shrink-0">
+                  {/* Track Title, Routing, Timecode & Quick Alignment Reset */}
+                  <div className="flex items-center justify-between pl-2">
+                    <div className="flex items-center space-x-2.5 truncate">
+                      <div
+                        className="p-1.5 rounded-xl border flex items-center justify-center shrink-0 shadow-sm"
+                        style={{ backgroundColor: `${config.color}15`, borderColor: `${config.color}40` }}
+                      >
                         {config.icon}
                       </div>
                       <div className="truncate">
                         <div className="flex items-center space-x-1.5">
-                          <h4 className="text-[11px] font-mono font-bold text-zinc-100 tracking-wide leading-none truncate">
+                          <h4 className="text-[12px] font-mono font-extrabold text-white tracking-wide leading-none truncate">
                             {config.name}
                           </h4>
                         </div>
-                        <span className="text-[8px] font-mono text-zinc-500 truncate block">
+                        <span className="text-[9px] font-mono text-zinc-400 truncate block mt-0.5">
                           {config.routing}
                         </span>
                       </div>
                     </div>
 
                     {/* Time Badge + Single Stem Align Reset Button */}
-                    <div className="flex items-center space-x-1 shrink-0">
+                    <div className="flex items-center space-x-1.5 shrink-0">
                       <span
-                        className="text-[8px] font-mono font-bold px-1.5 py-0.5 rounded bg-black/60 border border-[#262830]"
+                        className="text-[9px] font-mono font-bold px-2 py-0.5 rounded-lg bg-black/70 border border-white/[0.08] shadow-inner"
                         style={{ color: config.color }}
-                        title={`${config.shortName} Playback Time`}
+                        title={`${config.shortName} Playback Position`}
                       >
                         {formatRulerTime(stemCurrentTime)}
                       </span>
                       {hasOffset && (
                         <button
                           onClick={() => handleResetSingleStem(stem)}
-                          className="text-[8px] font-mono font-bold px-1 py-0.5 rounded bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 border border-amber-500/40 transition-all"
+                          className="text-[8px] font-mono font-bold px-1.5 py-0.5 rounded-md bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 border border-amber-500/40 transition-all shadow-sm"
                           title="Reset this stem's offset back to master playhead (0.0s)"
                         >
                           ↺ 0s
                         </button>
                       )}
                       {(isLeftHandControlled || isRightHandControlled) && (
-                        <span className="text-[7px] font-mono font-bold px-1 py-0.2 rounded bg-red-600 text-white animate-pulse">
+                        <span className="text-[8px] font-mono font-bold px-1.5 py-0.5 rounded-md bg-red-600 text-white animate-pulse shadow-sm">
                           GESTURE
                         </span>
                       )}
                     </div>
                   </div>
 
-                  {/* Quick Track Controls: Mute, Solo, Volume, Pan */}
-                  <div className="flex items-center space-x-1.5 text-xs font-mono pl-1.5">
+                  {/* Quick Track Controls: Tactile Mute, Solo, Volume, Pan */}
+                  <div className="flex items-center space-x-2 text-xs font-mono pl-2">
                     <button
                       onClick={() => onStemMuteToggle(stem)}
-                      className={`w-6 h-6 rounded text-[10px] font-bold border transition-all flex items-center justify-center ${
+                      className={`w-7 h-7 rounded-xl text-[11px] font-bold border transition-all flex items-center justify-center ${
                         state.muted
-                          ? 'bg-red-600 text-white border-red-500 shadow-[0_0_8px_rgba(220,38,38,0.5)]'
-                          : 'bg-[#1c1e24] border-[#2d303a] text-zinc-400 hover:text-white'
+                          ? 'bg-red-600 text-white border-red-500 shadow-[0_0_12px_rgba(220,38,38,0.7)]'
+                          : 'bg-black/50 border-white/[0.08] text-zinc-400 hover:text-white hover:bg-white/[0.08]'
                       }`}
                       title={`Mute ${config.shortName}`}
                     >
@@ -711,17 +714,18 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
 
                     <button
                       onClick={() => onStemSoloToggle(stem)}
-                      className={`w-6 h-6 rounded text-[10px] font-bold border transition-all flex items-center justify-center ${
+                      className={`w-7 h-7 rounded-xl text-[11px] font-bold border transition-all flex items-center justify-center ${
                         state.solo
-                          ? 'bg-amber-400 text-black border-amber-300 shadow-[0_0_8px_rgba(251,191,36,0.5)]'
-                          : 'bg-[#1c1e24] border-[#2d303a] text-zinc-400 hover:text-white'
+                          ? 'bg-amber-400 text-black border-amber-300 shadow-[0_0_12px_rgba(251,191,36,0.7)]'
+                          : 'bg-black/50 border-white/[0.08] text-zinc-400 hover:text-white hover:bg-white/[0.08]'
                       }`}
                       title={`Solo ${config.shortName}`}
                     >
                       S
                     </button>
 
-                    <div className="flex-1 flex items-center space-x-1 bg-[#101114] px-1.5 py-1 rounded border border-[#24262e]">
+                    {/* Volume Slider Capsule */}
+                    <div className="flex-1 flex items-center space-x-1.5 bg-black/60 px-2 py-1.5 rounded-xl border border-white/[0.06] shadow-inner">
                       <span className="text-[8px] text-zinc-400 font-bold">VOL</span>
                       <input
                         type="range"
@@ -730,15 +734,16 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
                         step="0.01"
                         value={state.volume}
                         onChange={(e) => onStemVolumeChange(stem, parseFloat(e.target.value))}
-                        className="w-full h-1 bg-zinc-800 rounded appearance-none cursor-pointer accent-cyan-400"
+                        className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-cyan-400"
                       />
-                      <span className="text-[8px] text-zinc-200 font-mono w-6 text-right">
+                      <span className="text-[9px] text-zinc-200 font-mono w-7 text-right font-bold">
                         {Math.round(state.volume * 100)}%
                       </span>
                     </div>
 
-                    <div className="flex items-center space-x-1 bg-[#101114] px-1 py-1 rounded border border-[#24262e]">
-                      <span className="text-[7px] text-zinc-400 font-bold">PAN</span>
+                    {/* Pan Slider Capsule */}
+                    <div className="flex items-center space-x-1 bg-black/60 px-1.5 py-1.5 rounded-xl border border-white/[0.06] shadow-inner">
+                      <span className="text-[8px] text-zinc-400 font-bold">PAN</span>
                       <input
                         type="range"
                         min="-1.0"
@@ -746,31 +751,31 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
                         step="0.05"
                         value={state.pan}
                         onChange={(e) => onStemPanChange(stem, parseFloat(e.target.value))}
-                        className="w-8 h-1 bg-zinc-800 rounded appearance-none cursor-pointer accent-white"
+                        className="w-9 h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-white"
                       />
                     </div>
                   </div>
 
-                  {/* Real-time LED Peak VU Meter Strip */}
-                  <div className="w-full h-1 bg-black rounded-full overflow-hidden border border-[#22242c] pl-1.5">
+                  {/* Real-time Multi-Segment Peak VU Meter Strip */}
+                  <div className="w-full h-1.5 bg-black/90 rounded-full overflow-hidden border border-white/[0.06] pl-2 shadow-inner">
                     <div
-                      className="h-full bg-gradient-to-r from-emerald-500 via-amber-400 to-red-500 transition-all duration-75"
+                      className="h-full bg-gradient-to-r from-emerald-500 via-amber-400 to-red-500 transition-all duration-75 shadow-[0_0_8px_rgba(52,211,153,0.5)]"
                       style={{ width: `${Math.min(100, vu * 100)}%` }}
                     />
                   </div>
                 </div>
 
-                {/* Right Column: Audio Clips Timeline Lane & Independent Laser Playhead */}
+                {/* Right Column: Audio Clips Timeline Lane & Splice Waveform Canvas */}
                 <div
                   ref={(el) => (stemLaneRefs.current[stem] = el)}
                   onMouseDown={(e) => handleStemMouseDown(stem, e)}
-                  className={`relative flex-1 bg-[#0a0b0d] overflow-hidden p-1.5 group ${
+                  className={`relative flex-1 bg-[#000000] overflow-hidden p-2 group ${
                     scrubbingStem === stem ? 'cursor-grabbing' : 'cursor-pointer'
                   }`}
                   title={`Click or drag to seek ${config.shortName} independently (${formatRulerTime(stemCurrentTime)})`}
                 >
                   <div
-                    className="relative w-full h-full rounded border border-zinc-800/80 overflow-hidden"
+                    className="relative w-full h-full rounded-xl border border-white/[0.05] overflow-hidden shadow-inner bg-[#000000]"
                     style={{ backgroundColor: config.bgTint }}
                   >
                     {/* Stem Background Waveform Canvas */}
@@ -779,7 +784,7 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
                       className="absolute inset-0 w-full h-full pointer-events-none"
                     />
 
-                    {/* Interactive Audio Clips (if clips exist) */}
+                    {/* Interactive Audio Clips (Splice Sample Card Blocks) */}
                     {stemClips.map((clip) => {
                       const clipStartRatio = (clip.startTime / (duration || 180)) * 100;
                       const clipWidthRatio = (clip.duration / (duration || 180)) * 100;
@@ -796,15 +801,15 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
                             left: `${clipStartRatio}%`,
                             width: `${clipWidthRatio}%`,
                           }}
-                          className={`absolute top-1 bottom-1 rounded border shadow-md flex flex-col justify-between p-1 z-10 transition-all ${
+                          className={`absolute top-1.5 bottom-1.5 rounded-xl border backdrop-blur-md shadow-lg flex flex-col justify-between p-1.5 z-10 transition-all ${
                             isSelected
-                              ? 'border-cyan-400 bg-cyan-950/70 shadow-[0_0_12px_rgba(6,182,212,0.4)]'
-                              : 'border-zinc-700/80 bg-[#15161c]/80 hover:border-zinc-500'
+                              ? 'border-cyan-400 bg-cyan-950/80 shadow-[0_0_16px_rgba(6,182,212,0.5)] scale-[1.01]'
+                              : 'border-white/[0.12] bg-[#141622]/90 hover:border-white/[0.25]'
                           }`}
                         >
                           {/* Clip Header Bar */}
-                          <div className="flex items-center justify-between text-[8px] font-mono font-bold text-zinc-300">
-                            <span className="truncate max-w-[90px]">{clip.name || clip.songTitle}</span>
+                          <div className="flex items-center justify-between text-[9px] font-mono font-bold text-zinc-200">
+                            <span className="truncate max-w-[100px]">{clip.name || clip.songTitle}</span>
                             <div className="flex items-center space-x-1">
                               {onDuplicateClip && (
                                 <button
@@ -812,7 +817,7 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
                                     e.stopPropagation();
                                     onDuplicateClip(clip.id);
                                   }}
-                                  className="p-0.5 hover:text-cyan-300"
+                                  className="p-1 hover:text-cyan-300 transition-colors"
                                   title="Duplicate Clip"
                                 >
                                   <Copy className="w-2.5 h-2.5" />
@@ -824,7 +829,7 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
                                     e.stopPropagation();
                                     onDeleteClip(clip.id);
                                   }}
-                                  className="p-0.5 hover:text-red-400"
+                                  className="p-1 hover:text-red-400 transition-colors"
                                   title="Delete Clip Slice"
                                 >
                                   <Trash2 className="w-2.5 h-2.5" />
@@ -834,9 +839,11 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
                           </div>
 
                           {/* Clip Time Duration Badge */}
-                          <div className="text-[7px] text-zinc-500 font-mono flex justify-between items-center">
+                          <div className="text-[8px] text-zinc-400 font-mono flex justify-between items-center">
                             <span>{formatRulerTime(clip.startTime)}</span>
-                            <span>{clip.duration.toFixed(1)}s</span>
+                            <span className="px-1 py-0.2 rounded bg-black/50 border border-white/[0.06] text-cyan-300">
+                              {clip.duration.toFixed(1)}s
+                            </span>
                           </div>
                         </div>
                       );
@@ -844,7 +851,7 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
 
                     {/* Played Region Shading Overlay (Tracks Stem Progress Independently) */}
                     <div
-                      className="absolute top-0 bottom-0 left-0 bg-white/5 pointer-events-none border-r transition-all duration-75"
+                      className="absolute top-0 bottom-0 left-0 bg-white/[0.03] pointer-events-none border-r transition-all duration-75"
                       style={{
                         width: `${stemProgress}%`,
                         borderColor: config.color,
@@ -852,23 +859,23 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
                     />
 
                     {/* Grid Lines Overlay */}
-                    <div className="absolute inset-0 flex justify-between pointer-events-none px-2 opacity-20">
+                    <div className="absolute inset-0 flex justify-between pointer-events-none px-2 opacity-15">
                       {rulerTicks.map((_, i) => (
-                        <div key={i} className="w-px h-full bg-zinc-700" />
+                        <div key={i} className="w-px h-full bg-zinc-600" />
                       ))}
                     </div>
 
-                    {/* Independent Moving Playhead Laser Bar (Separate on each stem!) */}
+                    {/* Splice iPad Glowing Playhead Laser Bar */}
                     <div
                       className="absolute top-0 bottom-0 w-1 pointer-events-none z-20 transition-all duration-75"
                       style={{
                         left: `calc(${stemProgress}% - 1px)`,
                         backgroundColor: config.color,
-                        boxShadow: `0 0 10px ${config.color}`,
+                        boxShadow: `0 0 14px ${config.color}`,
                       }}
                     >
                       <div
-                        className="w-2.5 h-4 -translate-x-[3px] -translate-y-0.5 rounded shadow-md flex items-center justify-center text-[8px] font-bold text-black"
+                        className="w-3 h-4 -translate-x-[4px] -translate-y-0.5 rounded-full shadow-[0_0_8px_rgba(0,0,0,0.8)] flex items-center justify-center text-[9px] font-extrabold text-black"
                         style={{ backgroundColor: config.color }}
                       >
                         ▼
@@ -876,11 +883,11 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
                     </div>
 
                     {/* Default Track Info Tag */}
-                    <div className="absolute top-1.5 left-2 pointer-events-none flex items-center space-x-1.5 text-[8px] font-mono font-bold text-zinc-400 bg-black/75 px-1.5 py-0.5 rounded border border-zinc-800 z-10">
+                    <div className="absolute top-2 left-2.5 pointer-events-none flex items-center space-x-1.5 text-[8px] font-mono font-bold text-zinc-300 bg-black/80 backdrop-blur-md px-2 py-0.5 rounded-lg border border-white/[0.08] z-10 shadow-sm">
                       <span style={{ color: config.color }}>●</span>
-                      <span className="text-zinc-200">{trackMetadata?.title || 'DEMUCS_STEM'}</span>
+                      <span className="text-white font-extrabold">{trackMetadata?.title || 'DEMUCS_STEM'}</span>
                       <span className="text-zinc-500">[{config.shortName}.WAV]</span>
-                      <span className="font-mono text-cyan-300 ml-1 font-bold">[{formatRulerTime(stemCurrentTime)}]</span>
+                      <span className="font-mono text-cyan-300 ml-1 font-extrabold">[{formatRulerTime(stemCurrentTime)}]</span>
                     </div>
                   </div>
                 </div>

@@ -393,14 +393,14 @@ describe('UI Studio Deck Components', () => {
         })
       );
 
-      expect(html).toContain("MixConsole • 4-Stem Studio Desk");
-      expect(html).toContain("01 VOCALS");
-      expect(html).toContain("02 DRUMS");
-      expect(html).toContain("03 BASS");
-      expect(html).toContain("04 OTHER");
-      expect(html).toContain("MASTER BUSS");
-      expect(html).toContain("Vocal Auto-Ducking:");
-      expect(html).toContain("ENGAGED");
+      expect(html).toContain("Splice Console");
+      expect(html).toContain("VOCALS");
+      expect(html).toContain("DRUMS");
+      expect(html).toContain("BASS");
+      expect(html).toContain("OTHER");
+      expect(html).toContain("MAIN BUSS");
+      expect(html).toContain("Auto-Ducking:");
+      expect(html).toContain("ON");
     });
 
     it("renders GestureLabView with camera viewport and telemetry cards", () => {
@@ -414,7 +414,7 @@ describe('UI Studio Deck Components', () => {
         })
       );
 
-      expect(html).toContain("Vision AI &amp; Spatial Gesture Lab");
+      expect(html).toContain("Spatial Gesture HUD");
       expect(html).toContain("Spatial Camera Viewport");
       expect(html).toContain("Live Modulation Telemetry");
       expect(html).toContain("Gesture Mapping Reference");
@@ -430,7 +430,7 @@ describe('UI Studio Deck Components', () => {
         })
       );
 
-      expect(html).toContain("Audio-Reactive Visual Stage");
+      expect(html).toContain("Audio-Reactive Stage");
       expect(html).toContain("Neon Cyber Anthem");
     });
 
@@ -474,12 +474,12 @@ describe('UI Studio Deck Components', () => {
         })
       );
 
-      expect(html).toContain("Stem Inserts &amp; FX Rack");
+      expect(html).toContain("Splice FX Rack");
       expect(html).toContain("3-Band EQ");
       expect(html).toContain("Compressor");
-      expect(html).toContain("Convolver Reverb");
+      expect(html).toContain("Space Reverb");
       expect(html).toContain("Stereo Delay");
-      expect(html).toContain("Saturation");
+      expect(html).toContain("Warm Drive");
     });
 
     it("renders CapturePerformanceModal with take details and checklist", () => {

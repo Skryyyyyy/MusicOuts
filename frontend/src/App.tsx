@@ -705,7 +705,7 @@ export const App: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#0e0f12] text-zinc-100 flex flex-col font-sans selection:bg-cyan-500/20 select-none">
+    <div className="min-h-screen bg-[#000000] text-zinc-100 flex flex-col font-sans selection:bg-cyan-500/20 select-none">
       {/* Hidden File Input for Open Project */}
       <input
         type="file"
@@ -880,8 +880,8 @@ export const App: React.FC = () => {
 
       {/* 3. Studio Status Bar Footer (Collapsible) */}
       <footer
-        className={`border-t border-[#262830] bg-[#17181d] px-3 flex items-center justify-between text-[10px] font-mono text-zinc-400 select-none transition-all ${
-          isFooterCollapsed ? "h-3 overflow-hidden py-0" : "h-6 py-0"
+        className={`border-t border-white/[0.08] bg-[#000000]/95 backdrop-blur-xl px-4 flex items-center justify-between text-[10px] font-mono text-zinc-400 select-none transition-all ${
+          isFooterCollapsed ? "h-3 overflow-hidden py-0" : "h-7 py-0"
         }`}
       >
         <div className="flex items-center space-x-3">

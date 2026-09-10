@@ -123,59 +123,64 @@ export const DawTransport: React.FC<DawTransportProps> = ({
 
   return (
     <header
-      className={`bg-[#15161b] border-b border-[#262832] px-3.5 py-1.5 flex flex-wrap items-center justify-between gap-2.5 select-none z-40 ${className}`}
+      className={`mx-3 mt-2.5 mb-1.5 px-4 py-2 bg-[#14161f]/95 backdrop-blur-2xl border border-white/[0.08] rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.5)] flex flex-wrap items-center justify-between gap-3 select-none z-40 transition-all ${className}`}
     >
-      {/* 1. Left Section: Logo & Mode Pill & Workspaces */}
-      <div className="flex items-center space-x-2.5">
-        {/* Brand Logo */}
-        <div className="flex items-center space-x-2 pr-2 border-r border-[#2a2c36]">
-          <div className="w-6 h-6 rounded-md bg-gradient-to-tr from-cyan-600 to-cyan-400 flex items-center justify-center shadow-[0_0_12px_rgba(6,182,212,0.4)]">
-            <RadioTower className="w-3.5 h-3.5 text-black" />
+      {/* 1. Left Section: Splice Brand & Workspace Navigation Capsule */}
+      <div className="flex items-center space-x-3">
+        {/* Brand Logo & Splice Badge */}
+        <div className="flex items-center space-x-2.5 pr-3 border-r border-white/[0.08]">
+          <div className="w-7 h-7 rounded-xl bg-gradient-to-tr from-cyan-500 via-sky-400 to-blue-600 flex items-center justify-center shadow-[0_0_16px_rgba(6,182,212,0.5)]">
+            <RadioTower className="w-4 h-4 text-black" />
           </div>
-          <span className="font-bold text-xs tracking-wider uppercase text-zinc-100 font-mono hidden sm:inline">
-            MusicOuts
-          </span>
+          <div className="flex flex-col">
+            <span className="font-extrabold text-[13px] tracking-wider uppercase text-white font-mono leading-none">
+              MusicOuts
+            </span>
+            <span className="text-[8px] font-mono font-bold text-cyan-400 tracking-widest leading-tight">
+              IPAD DAW
+            </span>
+          </div>
         </div>
 
-        {/* Studio Mode Selector: PERFORMANCE vs PRODUCER */}
+        {/* Studio Mode Switcher: PERFORMANCE vs PRODUCER */}
         {onModeChange && (
-          <div className="flex items-center bg-[#0c0d10] p-0.5 rounded-lg border border-[#23252f] text-[10px] font-mono">
+          <div className="flex items-center bg-[#0a0b10] p-0.5 rounded-xl border border-white/[0.06] text-[10px] font-mono">
             <button
               onClick={() => onModeChange("performance")}
-              className={`px-2 py-1 rounded-md font-bold uppercase transition-all ${
+              className={`px-2.5 py-1 rounded-lg font-bold uppercase transition-all ${
                 mode === "performance"
                   ? "bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm"
                   : "text-zinc-500 hover:text-zinc-300"
               }`}
             >
-              Performance
+              Perform
             </button>
             <button
               onClick={() => onModeChange("producer")}
-              className={`px-2 py-1 rounded-md font-bold uppercase transition-all ${
+              className={`px-2.5 py-1 rounded-lg font-bold uppercase transition-all ${
                 mode === "producer"
                   ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm"
                   : "text-zinc-500 hover:text-zinc-300"
               }`}
             >
-              Producer
+              Studio
             </button>
           </div>
         )}
 
-        {/* Primary Workspace Tabs */}
+        {/* Primary Workspace Pill Tabs (Splice DAW Tab Bar) */}
         {onViewChange && (
-          <div className="flex items-center space-x-1 bg-[#0c0d10] p-0.5 rounded-lg border border-[#23252f]">
+          <div className="flex items-center space-x-1 bg-[#0a0b10] p-1 rounded-xl border border-white/[0.06]">
             {PRIMARY_VIEWS.map((tab) => {
               const isActive = currentView === tab.id;
               return (
                 <button
                   key={tab.id}
                   onClick={() => onViewChange(tab.id)}
-                  className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-md text-[11px] font-mono font-bold transition-all ${
+                  className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-[11px] font-mono font-bold transition-all ${
                     isActive
-                      ? "bg-[#252834] text-cyan-300 border border-cyan-500/30 shadow-sm"
-                      : "text-zinc-400 hover:text-zinc-200 hover:bg-[#181920]"
+                      ? "bg-gradient-to-r from-cyan-500/20 to-blue-500/20 text-cyan-300 border border-cyan-500/40 shadow-[0_0_12px_rgba(6,182,212,0.25)]"
+                      : "text-zinc-400 hover:text-zinc-100 hover:bg-white/[0.04]"
                   }`}
                   title={`${tab.label} (Press ${tab.hotkey})`}
                 >
@@ -188,30 +193,30 @@ export const DawTransport: React.FC<DawTransportProps> = ({
         )}
       </div>
 
-      {/* 2. Middle Section: Transport & Timecode Display */}
-      <div className="flex items-center space-x-2">
-        {/* Recessed Timecode Display */}
+      {/* 2. Middle Section: OLED Timecode & Tactile Transport Controls */}
+      <div className="flex items-center space-x-2.5">
+        {/* Glossy OLED Timecode & BPM Display Screen */}
         <div
           onClick={() => setShowTimeInBars((v) => !v)}
-          className="bg-[#090a0d] border border-[#20222a] rounded-lg px-2.5 py-1 flex items-center space-x-2 cursor-pointer hover:border-cyan-500/40 transition-colors shadow-inner"
+          className="bg-black/90 border border-cyan-500/30 rounded-xl px-3.5 py-1.5 flex items-center space-x-2.5 cursor-pointer hover:border-cyan-400 transition-all shadow-[inset_0_2px_8px_rgba(0,0,0,0.8)]"
           title="Click to toggle Timecode vs Bars & Beats"
         >
-          <Clock className="w-3.5 h-3.5 text-cyan-400" />
-          <div className="font-mono text-xs font-bold text-cyan-300 tracking-widest min-w-[72px] text-center">
+          <Clock className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
+          <div className="font-mono text-xs font-extrabold text-cyan-300 tracking-widest min-w-[76px] text-center">
             {showTimeInBars ? formatBarsBeats(currentTime) : formatTimecode(currentTime)}
           </div>
-          <span className="text-[8px] font-mono px-1 py-0.2 rounded bg-cyan-950/60 text-cyan-400 border border-cyan-800/50">
+          <span className="text-[8px] font-mono px-1.5 py-0.5 rounded-md bg-cyan-950 text-cyan-400 border border-cyan-800/60 font-bold">
             {showTimeInBars ? "BARS" : "SMPTE"}
           </span>
         </div>
 
-        {/* Transport Controls */}
-        <div className="flex items-center space-x-1 bg-[#0c0d10] p-1 rounded-lg border border-[#23252f]">
+        {/* Transport Control Buttons */}
+        <div className="flex items-center space-x-1 bg-[#0a0b10] p-1 rounded-xl border border-white/[0.06]">
           {/* Return to 0:00 */}
           <button
             onClick={onReset}
-            className="p-1.5 text-zinc-400 hover:text-white hover:bg-[#20222b] rounded transition-all"
-            title="Return to 0:00 (Home)"
+            className="p-2 text-zinc-400 hover:text-white hover:bg-white/[0.06] rounded-lg transition-all"
+            title="Return to 0:00 (Home / R)"
           >
             <RotateCcw className="w-3.5 h-3.5" />
           </button>
@@ -219,19 +224,19 @@ export const DawTransport: React.FC<DawTransportProps> = ({
           {/* Stop */}
           <button
             onClick={onStop}
-            className="p-1.5 text-zinc-400 hover:text-white hover:bg-[#20222b] rounded transition-all"
+            className="p-2 text-zinc-400 hover:text-white hover:bg-white/[0.06] rounded-lg transition-all"
             title="Stop Playback"
           >
             <Square className="w-3.5 h-3.5 fill-current" />
           </button>
 
-          {/* Play / Pause Primary Button */}
+          {/* Play / Pause Glow Button */}
           <button
             onClick={onPlayToggle}
-            className={`px-3 py-1 rounded-md font-mono font-bold text-xs flex items-center space-x-1.5 transition-all shadow-md ${
+            className={`px-4 py-1.5 rounded-xl font-mono font-extrabold text-xs flex items-center space-x-2 transition-all ${
               isPlaying
-                ? "bg-emerald-500 hover:bg-emerald-400 text-black shadow-[0_0_12px_rgba(16,185,129,0.5)]"
-                : "bg-cyan-600 hover:bg-cyan-500 text-white shadow-[0_0_12px_rgba(6,182,212,0.3)]"
+                ? "bg-gradient-to-r from-emerald-400 to-teal-500 text-black shadow-[0_0_20px_rgba(52,211,153,0.6)] hover:scale-105"
+                : "bg-gradient-to-r from-cyan-400 via-sky-500 to-blue-600 text-black shadow-[0_0_20px_rgba(6,182,212,0.5)] hover:scale-105"
             }`}
             title="Play / Pause (Space)"
           >
@@ -242,34 +247,34 @@ export const DawTransport: React.FC<DawTransportProps> = ({
               </>
             ) : (
               <>
-                <Play className="w-3.5 h-3.5 fill-white" />
+                <Play className="w-3.5 h-3.5 fill-black" />
                 <span>PLAY</span>
               </>
             )}
           </button>
 
-          {/* Loop Cycle */}
+          {/* Loop Toggle */}
           <button
             onClick={onLoopToggle}
-            className={`p-1.5 rounded transition-all ${
+            className={`p-2 rounded-lg transition-all ${
               isLooping
-                ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40"
-                : "text-zinc-400 hover:text-white hover:bg-[#20222b]"
+                ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm"
+                : "text-zinc-400 hover:text-white hover:bg-white/[0.06]"
             }`}
             title="Toggle Loop Cycle (L)"
           >
             <Repeat className="w-3.5 h-3.5" />
           </button>
 
-          {/* Auto Sidechain Ducking */}
+          {/* Auto Sidechain Ducking Pill */}
           <button
             onClick={onDuckingToggle}
-            className={`flex items-center space-x-1 px-2 py-1 rounded text-[10px] font-mono font-bold transition-all ${
+            className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold transition-all ${
               isDucking
-                ? "bg-amber-500/20 text-amber-300 border border-amber-500/50 shadow-[0_0_8px_rgba(245,158,11,0.2)]"
-                : "bg-[#16171d] text-zinc-500 hover:text-zinc-300 border border-[#262832]"
+                ? "bg-amber-500/20 text-amber-300 border border-amber-500/50 shadow-[0_0_10px_rgba(245,158,11,0.25)]"
+                : "bg-white/[0.03] text-zinc-400 hover:text-zinc-200 border border-white/[0.06]"
             }`}
-            title="Auto-Ducking: Lowers backing stems by -9dB when vocals play"
+            title="Auto-Ducking: Lowers backing stems when vocals play"
           >
             <Mic className="w-3 h-3" />
             <span>{isDucking ? `DUCK: ${duckingDb}` : "DUCK OFF"}</span>
@@ -277,16 +282,16 @@ export const DawTransport: React.FC<DawTransportProps> = ({
         </div>
       </div>
 
-      {/* 3. Right Section: Production Tools & Project Actions */}
-      <div className="flex items-center space-x-1.5">
+      {/* 3. Right Section: Splice Studio Actions & Telemetry */}
+      <div className="flex items-center space-x-2">
         {/* Record Automation Button */}
         {onToggleRecordAutomation && (
           <button
             onClick={onToggleRecordAutomation}
-            className={`flex items-center space-x-1 px-2 py-1 rounded-md text-[10px] font-mono font-bold transition-all ${
+            className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-[10px] font-mono font-bold transition-all ${
               isRecordingAutomation
-                ? "bg-pink-600 text-white animate-pulse shadow-[0_0_12px_rgba(236,72,153,0.7)]"
-                : "bg-[#101115] text-pink-400 hover:bg-[#20212b] border border-pink-500/30"
+                ? "bg-pink-600 text-white animate-pulse shadow-[0_0_16px_rgba(236,72,153,0.8)]"
+                : "bg-[#0a0b10] text-pink-400 hover:bg-pink-500/10 border border-pink-500/30"
             }`}
             title="Record Gestures & Mixer Automation in Real-Time"
           >
@@ -299,10 +304,10 @@ export const DawTransport: React.FC<DawTransportProps> = ({
         {onToggleCapturePerformance && (
           <button
             onClick={onToggleCapturePerformance}
-            className={`flex items-center space-x-1 px-2 py-1 rounded-md text-[10px] font-mono font-bold transition-all ${
+            className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-[10px] font-mono font-bold transition-all ${
               isCapturingPerformance
-                ? "bg-red-600 text-white animate-pulse shadow-[0_0_12px_rgba(239,68,68,0.7)]"
-                : "bg-[#101115] text-amber-400 hover:bg-[#20212b] border border-amber-500/30"
+                ? "bg-red-600 text-white animate-pulse shadow-[0_0_16px_rgba(239,68,68,0.8)]"
+                : "bg-[#0a0b10] text-amber-400 hover:bg-amber-500/10 border border-amber-500/30"
             }`}
             title="Capture Full Live Gesture & Mixer Performance Session"
           >
@@ -315,10 +320,10 @@ export const DawTransport: React.FC<DawTransportProps> = ({
         {onOpenSynth && (
           <button
             onClick={onOpenSynth}
-            className={`flex items-center space-x-1 px-2 py-1 rounded-md text-[10px] font-mono font-bold transition-all ${
+            className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl text-[10px] font-mono font-bold transition-all ${
               isSynthOpen
                 ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/50"
-                : "bg-[#101115] text-zinc-400 hover:text-white hover:bg-[#20212b] border border-[#262832]"
+                : "bg-[#0a0b10] text-zinc-400 hover:text-white hover:bg-white/[0.04] border border-white/[0.06]"
             }`}
             title="Virtual Web Synthesizer & Piano Roll"
           >
@@ -331,10 +336,10 @@ export const DawTransport: React.FC<DawTransportProps> = ({
         {onViewChange && (
           <button
             onClick={() => onViewChange("ingestion")}
-            className={`flex items-center space-x-1 px-2 py-1 rounded-md text-[10px] font-mono font-bold transition-all ${
+            className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl text-[10px] font-mono font-bold transition-all ${
               currentView === "ingestion"
                 ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/50"
-                : "bg-[#101115] text-zinc-400 hover:text-white hover:bg-[#20212b] border border-[#262832]"
+                : "bg-[#0a0b10] text-zinc-400 hover:text-white hover:bg-white/[0.04] border border-white/[0.06]"
             }`}
             title="AI Stem Separation & Ingestion"
           >
@@ -343,11 +348,11 @@ export const DawTransport: React.FC<DawTransportProps> = ({
           </button>
         )}
 
-        {/* Save / Open Project Buttons */}
+        {/* Project Actions: Save / Open */}
         {onSaveProject && (
           <button
             onClick={onSaveProject}
-            className="flex items-center space-x-1 px-2 py-1 bg-[#101115] hover:bg-[#20212b] text-zinc-300 hover:text-white border border-[#262832] rounded-md text-[10px] font-mono font-bold transition-all"
+            className="flex items-center space-x-1 px-2.5 py-1.5 bg-[#0a0b10] hover:bg-white/[0.04] text-zinc-300 hover:text-white border border-white/[0.06] rounded-xl text-[10px] font-mono font-bold transition-all"
             title="Save Project File (.musicouts)"
           >
             <Save className="w-3 h-3 text-emerald-400" />
@@ -358,7 +363,7 @@ export const DawTransport: React.FC<DawTransportProps> = ({
         {onOpenProject && (
           <button
             onClick={onOpenProject}
-            className="flex items-center space-x-1 px-2 py-1 bg-[#101115] hover:bg-[#20212b] text-zinc-300 hover:text-white border border-[#262832] rounded-md text-[10px] font-mono font-bold transition-all"
+            className="flex items-center space-x-1 px-2.5 py-1.5 bg-[#0a0b10] hover:bg-white/[0.04] text-zinc-300 hover:text-white border border-white/[0.06] rounded-xl text-[10px] font-mono font-bold transition-all"
             title="Open Project File (.musicouts)"
           >
             <FolderOpen className="w-3 h-3 text-cyan-400" />
@@ -370,16 +375,16 @@ export const DawTransport: React.FC<DawTransportProps> = ({
         {onOpenGuide && (
           <button
             onClick={onOpenGuide}
-            className="p-1 bg-[#101115] hover:bg-[#20212b] text-zinc-400 hover:text-white border border-[#262832] rounded-md text-[10px] font-mono font-bold transition-all"
+            className="p-2 bg-[#0a0b10] hover:bg-white/[0.04] text-zinc-400 hover:text-white border border-white/[0.06] rounded-xl text-[10px] font-mono font-bold transition-all"
             title="Studio Tour & Guide"
           >
             <HelpCircle className="w-3.5 h-3.5" />
           </button>
         )}
 
-        {/* Real Hardware Chip Status */}
+        {/* Real Hardware Acceleration Chip */}
         <div
-          className="flex items-center space-x-1.5 px-2 py-1 rounded bg-[#0b0c0f] border border-[#22242c] text-[10px] font-mono select-none"
+          className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl bg-black/60 border border-white/[0.08] text-[10px] font-mono select-none"
           title={`Hardware: ${hardwareInfo?.device_name || "CPU Engine"} (${hardwareInfo?.vram_gb || 0}GB VRAM, ${hardwareInfo?.cpu_threads || 8} Cores)`}
         >
           <Cpu className={`w-3 h-3 ${hardwareInfo?.cuda_available ? "text-cyan-400" : "text-amber-400"}`} />

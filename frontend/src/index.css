@@ -5,7 +5,7 @@
 @layer base {
   body {
     font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
-    background-color: #060608;
+    background-color: #000000;
     color: #f4f4f5;
   }
 
@@ -16,16 +16,16 @@
   }
 
   ::-webkit-scrollbar-track {
-    background: #09090b;
+    background: #000000;
   }
 
   ::-webkit-scrollbar-thumb {
-    background: #27272a;
-    border-radius: 2px;
+    background: #1f2026;
+    border-radius: 9999px;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: #52525b;
+    background: #3f3f46;
   }
 }
 
