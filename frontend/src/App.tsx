@@ -705,7 +705,7 @@ export const App: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#000000] text-zinc-100 flex flex-col font-sans selection:bg-cyan-500/20 select-none">
+    <div className="min-h-screen bg-[#08090F] text-[#E4E4F0] flex flex-col font-sans selection:bg-violet-500/20 select-none">
       {/* Hidden File Input for Open Project */}
       <input
         type="file"
@@ -761,14 +761,14 @@ export const App: React.FC = () => {
           <div className="flex items-center justify-between px-2">
             <div className="flex items-center space-x-2 text-xs font-mono text-zinc-400">
               <span className="text-zinc-200 font-bold">{trackMetadata ? trackMetadata.title : "No Project Audio Loaded"}</span>
-              {trackMetadata && <span className="text-[10px] px-1.5 py-0.2 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">120 BPM • 4/4 • A Minor</span>}
+              {trackMetadata && <span className="text-[10px] px-1.5 py-0.2 rounded bg-violet-500/10 text-violet-300 border border-violet-500/25">120 BPM • 4/4 • A Minor</span>}
             </div>
             <button
               onClick={() => setShowSynth(!showSynth)}
               className={`px-2.5 py-1 rounded text-[10px] font-mono font-bold border transition-all flex items-center space-x-1.5 ${
                 showSynth
-                  ? "bg-cyan-600 text-white border-cyan-400 shadow-sm"
-                  : "bg-[#181920] text-zinc-400 border-[#262830] hover:text-white"
+                  ? "bg-violet-600 text-white border-violet-400 shadow-[0_0_12px_rgba(124,58,237,0.5)]"
+                  : "bg-[#0e0c1c] text-violet-200/50 border-[#2D1B69]/50 hover:text-white"
               }`}
             >
               <Music className="w-3.5 h-3.5" />
@@ -880,7 +880,7 @@ export const App: React.FC = () => {
 
       {/* 3. Studio Status Bar Footer (Collapsible) */}
       <footer
-        className={`border-t border-white/[0.08] bg-[#000000]/95 backdrop-blur-xl px-4 flex items-center justify-between text-[10px] font-mono text-zinc-400 select-none transition-all ${
+        className={`border-t border-white/[0.05] bg-[#08090F]/95 backdrop-blur-xl px-4 flex items-center justify-between text-[10px] font-mono text-violet-200/50 select-none transition-all ${
           isFooterCollapsed ? "h-3 overflow-hidden py-0" : "h-7 py-0"
         }`}
       >
@@ -903,7 +903,7 @@ export const App: React.FC = () => {
                 <span className="text-zinc-300">Demucs Engine: {processStatus.message}</span>
               </div>
               <span className="text-zinc-700">|</span>
-              <span>Mode: <strong className="text-cyan-300 uppercase">{mode}</strong></span>
+              <span>Mode: <strong className="text-violet-300 uppercase">{mode}</strong></span>
               <span className="text-zinc-700">|</span>
               <span className={isRecordingAutomation ? "text-pink-400 font-bold animate-pulse" : "text-zinc-500"}>
                 Auto Record: {isRecordingAutomation ? "ARMED" : "IDLE"}
@@ -921,7 +921,7 @@ export const App: React.FC = () => {
             <span className="text-zinc-700">|</span>
             <span>Dual Fist Kill Switch: {gestureState.isDualFist ? "ACTIVE" : "READY"}</span>
             <span className="text-zinc-700">|</span>
-            <span className="text-cyan-400 font-medium">MusicOuts Pro DAW</span>
+            <span className="text-violet-400 font-medium">MusicOuts Pro DAW</span>
           </div>
         )}
       </footer>

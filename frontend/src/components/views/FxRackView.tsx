@@ -30,14 +30,14 @@ export interface FxRackViewProps {
 }
 
 const STEM_ICONS: Record<StemType, React.ReactNode> = {
-  vocals: <Mic className="w-4 h-4 text-cyan-400" />,
+  vocals: <Mic className="w-4 h-4 text-violet-400" />,
   drums: <Disc className="w-4 h-4 text-orange-400" />,
   bass: <Music className="w-4 h-4 text-purple-400" />,
   other: <Radio className="w-4 h-4 text-emerald-400" />,
 };
 
 const STEM_COLORS: Record<StemType, { border: string; text: string; bg: string; accent: string }> = {
-  vocals: { border: 'border-cyan-500/40', text: 'text-cyan-400', bg: 'bg-cyan-500/15', accent: '#00e5ff' },
+  vocals: { border: 'border-violet-500/40', text: 'text-violet-400', bg: 'bg-violet-500/15', accent: '#00e5ff' },
   drums: { border: 'border-orange-500/40', text: 'text-orange-400', bg: 'bg-orange-500/15', accent: '#ff5722' },
   bass: { border: 'border-purple-500/40', text: 'text-purple-400', bg: 'bg-purple-500/15', accent: '#a855f7' },
   other: { border: 'border-emerald-500/40', text: 'text-emerald-400', bg: 'bg-emerald-500/15', accent: '#10b981' },
@@ -85,30 +85,30 @@ export const FxRackView: React.FC<FxRackViewProps> = ({
   };
 
   return (
-    <div className={`flex flex-col h-full bg-[#0b0c10] rounded-2xl border border-white/[0.08] shadow-[0_10px_40px_rgba(0,0,0,0.6)] backdrop-blur-2xl overflow-hidden select-none text-zinc-300 font-mono ${className}`}>
+    <div className={`flex flex-col h-full bg-[#08090F] rounded-2xl border border-violet-500/[0.1] shadow-[0_0_0_1px_rgba(124,58,237,0.06),0_10px_40px_rgba(8,9,15,0.85)] backdrop-blur-2xl overflow-hidden select-none text-zinc-300 font-mono ${className}`}>
       {/* Header & Stem Tabs - Splice Glass Capsule Header */}
-      <div className="h-14 px-5 bg-gradient-to-r from-[#14161f]/95 via-[#161822]/90 to-[#14161f]/95 border-b border-white/[0.06] flex items-center justify-between shrink-0">
+      <div className="h-14 px-5 bg-gradient-to-r from-[#0d0b1e]/95 via-[#100e22]/90 to-[#0d0b1e]/95 border-b border-violet-500/[0.1] flex items-center justify-between shrink-0">
         <div className="flex items-center space-x-3">
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-cyan-500/20 to-blue-500/10 border border-cyan-500/30 flex items-center justify-center shadow-[0_0_15px_rgba(0,229,255,0.2)]">
-            <Sliders className="w-4 h-4 text-cyan-400" />
+          <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-violet-500/25 to-purple-500/10 border border-violet-500/30 flex items-center justify-center shadow-[0_0_15px_rgba(124,58,237,0.25)]">
+            <Sliders className="w-4 h-4 text-violet-400" />
           </div>
           <div>
             <div className="flex items-center space-x-2">
               <h2 className="font-extrabold text-xs tracking-wider uppercase text-white font-sans">
                 Splice FX Rack
               </h2>
-              <span className="px-1.5 py-0.2 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-[9px] font-mono text-cyan-300 font-bold">
+              <span className="px-1.5 py-0.2 rounded-full bg-violet-500/10 border border-violet-500/30 text-[9px] font-mono text-violet-300 font-bold">
                 32-BIT DSP
               </span>
             </div>
-            <span className="text-[10px] font-mono text-zinc-400 block -mt-0.5">
+            <span className="text-[10px] font-mono text-violet-200/40 block -mt-0.5">
               Studio Stem Dynamic &amp; Spatial Inserts
             </span>
           </div>
         </div>
 
         {/* Stem Switcher Pill Capsule */}
-        <div className="flex items-center space-x-1.5 bg-[#0b0c12]/90 p-1 rounded-full border border-white/[0.08] shadow-inner">
+        <div className="flex items-center space-x-1.5 bg-[#08061a]/90 p-1 rounded-full border border-violet-500/[0.1] shadow-inner">
           {STEM_TYPES.map((stem) => {
             const isSelected = selectedStem === stem;
             return (
@@ -118,7 +118,7 @@ export const FxRackView: React.FC<FxRackViewProps> = ({
                 className={`flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-bold transition-all active:scale-95 ${
                   isSelected
                     ? `${STEM_COLORS[stem].bg} ${STEM_COLORS[stem].text} border ${STEM_COLORS[stem].border} shadow-[0_0_12px_rgba(0,0,0,0.5)]`
-                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.05]'
+                    : 'text-violet-200/50 hover:text-violet-100 hover:bg-violet-500/[0.06]'
                 }`}
               >
                 {STEM_ICONS[stem]}
@@ -130,27 +130,27 @@ export const FxRackView: React.FC<FxRackViewProps> = ({
 
         <button
           onClick={resetStemFx}
-          className="flex items-center space-x-1.5 px-3 py-1.5 bg-white/[0.04] hover:bg-white/[0.08] text-zinc-300 hover:text-white rounded-full border border-white/[0.08] text-xs transition-all active:scale-95 shadow-sm"
+          className="flex items-center space-x-1.5 px-3 py-1.5 bg-violet-500/[0.06] hover:bg-violet-500/[0.12] text-violet-200/60 hover:text-violet-100 rounded-full border border-violet-500/[0.1] text-xs transition-all active:scale-95 shadow-sm"
           title="Reset current stem effects to defaults"
         >
-          <RotateCcw className="w-3.5 h-3.5 text-cyan-400" />
+          <RotateCcw className="w-3.5 h-3.5 text-violet-400" />
           <span className="text-[11px] font-bold">Reset FX</span>
         </button>
       </div>
 
       {/* Main FX Insert Grid */}
-      <div className="flex-1 p-5 overflow-y-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 bg-gradient-to-b from-[#0b0c10] to-[#08090c]">
+      <div className="flex-1 p-5 overflow-y-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 bg-gradient-to-b from-[#08090F] to-[#06050e]">
         {/* 1. 3-BAND EQ */}
         <div
-          className={`bg-gradient-to-b from-[#14161f]/90 to-[#101118]/90 border rounded-2xl p-4 flex flex-col justify-between shadow-[0_8px_32px_rgba(0,0,0,0.5)] backdrop-blur-xl transition-all duration-200 relative ${
-            currentFx.eq.enabled ? 'border-cyan-500/40 shadow-[0_0_20px_rgba(0,229,255,0.1)]' : 'border-white/[0.06] opacity-75'
+          className={`bg-gradient-to-b from-[#0d0b1e]/90 to-[#0a0818]/90 border rounded-2xl p-4 flex flex-col justify-between shadow-[0_8px_32px_rgba(0,0,0,0.5)] backdrop-blur-xl transition-all duration-200 relative ${
+            currentFx.eq.enabled ? 'border-violet-500/40 shadow-[0_0_20px_rgba(124,58,237,0.15)]' : 'border-violet-500/[0.07] opacity-75'
           }`}
         >
-          <div className="absolute top-0 left-6 right-6 h-[2px] bg-cyan-400/60 rounded-b-full" />
+          <div className="absolute top-0 left-6 right-6 h-[2px] bg-violet-400/60 rounded-b-full" />
           <div>
-            <div className="flex items-center justify-between border-b border-white/[0.06] pb-3 mb-3.5">
+            <div className="flex items-center justify-between border-b border-violet-500/[0.08] pb-3 mb-3.5">
               <div className="flex items-center space-x-2">
-                <Activity className="w-4 h-4 text-cyan-400" />
+                <Activity className="w-4 h-4 text-violet-400" />
                 <span className="font-extrabold text-xs uppercase text-white tracking-wider font-sans">3-Band EQ</span>
               </div>
               <button
@@ -162,7 +162,7 @@ export const FxRackView: React.FC<FxRackViewProps> = ({
                 }
                 className={`p-1.5 rounded-full transition-all active:scale-90 ${
                   currentFx.eq.enabled
-                    ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/50 shadow-[0_0_10px_rgba(0,229,255,0.4)]'
+                    ? 'bg-violet-500/20 text-violet-300 border border-violet-500/50 shadow-[0_0_10px_rgba(124,58,237,0.45)]'
                     : 'bg-white/[0.04] text-zinc-500 border border-white/[0.06]'
                 }`}
                 title="Bypass EQ"
@@ -173,10 +173,10 @@ export const FxRackView: React.FC<FxRackViewProps> = ({
 
             {/* EQ Controls */}
             <div className="flex flex-col gap-3 text-[11px]">
-              <div className="bg-[#0b0c12]/70 p-2 rounded-xl border border-white/[0.05]">
+              <div className="bg-[#08061a]/70 p-2 rounded-xl border border-violet-500/[0.08]">
                 <div className="flex justify-between text-zinc-400 mb-1 font-mono">
                   <span>Low Shelf (100Hz)</span>
-                  <span className="text-cyan-300 font-bold">{currentFx.eq.lowGain > 0 ? `+${currentFx.eq.lowGain}` : currentFx.eq.lowGain} dB</span>
+                  <span className="text-violet-300 font-bold">{currentFx.eq.lowGain > 0 ? `+${currentFx.eq.lowGain}` : currentFx.eq.lowGain} dB</span>
                 </div>
                 <input
                   type="range"
@@ -189,14 +189,14 @@ export const FxRackView: React.FC<FxRackViewProps> = ({
                     const lowGain = parseFloat(e.target.value);
                     updateStemFx((prev) => ({ ...prev, eq: { ...prev.eq, lowGain } }));
                   }}
-                  className="w-full accent-cyan-400 h-1.5 bg-white/[0.08] rounded-full cursor-pointer"
+                  className="w-full accent-violet-400 h-1.5 bg-white/[0.08] rounded-full cursor-pointer"
                 />
               </div>
 
-              <div className="bg-[#0b0c12]/70 p-2 rounded-xl border border-white/[0.05]">
+              <div className="bg-[#08061a]/70 p-2 rounded-xl border border-violet-500/[0.08]">
                 <div className="flex justify-between text-zinc-400 mb-1 font-mono">
                   <span>Mid Bell (1kHz)</span>
-                  <span className="text-cyan-300 font-bold">{currentFx.eq.midGain > 0 ? `+${currentFx.eq.midGain}` : currentFx.eq.midGain} dB</span>
+                  <span className="text-violet-300 font-bold">{currentFx.eq.midGain > 0 ? `+${currentFx.eq.midGain}` : currentFx.eq.midGain} dB</span>
                 </div>
                 <input
                   type="range"
@@ -209,14 +209,14 @@ export const FxRackView: React.FC<FxRackViewProps> = ({
                     const midGain = parseFloat(e.target.value);
                     updateStemFx((prev) => ({ ...prev, eq: { ...prev.eq, midGain } }));
                   }}
-                  className="w-full accent-cyan-400 h-1.5 bg-white/[0.08] rounded-full cursor-pointer"
+                  className="w-full accent-violet-400 h-1.5 bg-white/[0.08] rounded-full cursor-pointer"
                 />
               </div>
 
-              <div className="bg-[#0b0c12]/70 p-2 rounded-xl border border-white/[0.05]">
+              <div className="bg-[#08061a]/70 p-2 rounded-xl border border-violet-500/[0.08]">
                 <div className="flex justify-between text-zinc-400 mb-1 font-mono">
                   <span>High Shelf (8kHz)</span>
-                  <span className="text-cyan-300 font-bold">{currentFx.eq.highGain > 0 ? `+${currentFx.eq.highGain}` : currentFx.eq.highGain} dB</span>
+                  <span className="text-violet-300 font-bold">{currentFx.eq.highGain > 0 ? `+${currentFx.eq.highGain}` : currentFx.eq.highGain} dB</span>
                 </div>
                 <input
                   type="range"
@@ -229,7 +229,7 @@ export const FxRackView: React.FC<FxRackViewProps> = ({
                     const highGain = parseFloat(e.target.value);
                     updateStemFx((prev) => ({ ...prev, eq: { ...prev.eq, highGain } }));
                   }}
-                  className="w-full accent-cyan-400 h-1.5 bg-white/[0.08] rounded-full cursor-pointer"
+                  className="w-full accent-violet-400 h-1.5 bg-white/[0.08] rounded-full cursor-pointer"
                 />
               </div>
             </div>
@@ -244,15 +244,15 @@ export const FxRackView: React.FC<FxRackViewProps> = ({
 
         {/* 2. DYNAMICS COMPRESSOR */}
         <div
-          className={`bg-gradient-to-b from-[#14161f]/90 to-[#101118]/90 border rounded-2xl p-4 flex flex-col justify-between shadow-[0_8px_32px_rgba(0,0,0,0.5)] backdrop-blur-xl transition-all duration-200 relative ${
+          className={`bg-gradient-to-b from-[#0d0b1e]/90 to-[#0a0818]/90 border rounded-2xl p-4 flex flex-col justify-between shadow-[0_8px_32px_rgba(0,0,0,0.5)] backdrop-blur-xl transition-all duration-200 relative ${
             currentFx.compressor.enabled
               ? 'border-orange-500/40 shadow-[0_0_20px_rgba(255,87,34,0.1)]'
-              : 'border-white/[0.06] opacity-75'
+              : 'border-violet-500/[0.07] opacity-75'
           }`}
         >
           <div className="absolute top-0 left-6 right-6 h-[2px] bg-orange-400/60 rounded-b-full" />
           <div>
-            <div className="flex items-center justify-between border-b border-white/[0.06] pb-3 mb-3.5">
+            <div className="flex items-center justify-between border-b border-violet-500/[0.08] pb-3 mb-3.5">
               <div className="flex items-center space-x-2">
                 <Volume2 className="w-4 h-4 text-orange-400" />
                 <span className="font-extrabold text-xs uppercase text-white tracking-wider font-sans">Compressor</span>
@@ -277,7 +277,7 @@ export const FxRackView: React.FC<FxRackViewProps> = ({
 
             {/* Compressor Controls */}
             <div className="flex flex-col gap-3 text-[11px]">
-              <div className="bg-[#0b0c12]/70 p-2 rounded-xl border border-white/[0.05]">
+              <div className="bg-[#08061a]/70 p-2 rounded-xl border border-violet-500/[0.08]">
                 <div className="flex justify-between text-zinc-400 mb-1 font-mono">
                   <span>Threshold</span>
                   <span className="text-orange-300 font-bold">{currentFx.compressor.threshold} dB</span>
@@ -297,7 +297,7 @@ export const FxRackView: React.FC<FxRackViewProps> = ({
                 />
               </div>
 
-              <div className="bg-[#0b0c12]/70 p-2 rounded-xl border border-white/[0.05]">
+              <div className="bg-[#08061a]/70 p-2 rounded-xl border border-violet-500/[0.08]">
                 <div className="flex justify-between text-zinc-400 mb-1 font-mono">
                   <span>Ratio</span>
                   <span className="text-orange-300 font-bold">{currentFx.compressor.ratio}:1</span>
@@ -317,7 +317,7 @@ export const FxRackView: React.FC<FxRackViewProps> = ({
                 />
               </div>
 
-              <div className="bg-[#0b0c12]/70 p-2 rounded-xl border border-white/[0.05]">
+              <div className="bg-[#08061a]/70 p-2 rounded-xl border border-violet-500/[0.08]">
                 <div className="flex justify-between text-zinc-400 mb-1 font-mono">
                   <span>Attack / Release</span>
                   <span className="text-orange-300 font-bold">
@@ -360,15 +360,15 @@ export const FxRackView: React.FC<FxRackViewProps> = ({
 
         {/* 3. REVERB */}
         <div
-          className={`bg-gradient-to-b from-[#14161f]/90 to-[#101118]/90 border rounded-2xl p-4 flex flex-col justify-between shadow-[0_8px_32px_rgba(0,0,0,0.5)] backdrop-blur-xl transition-all duration-200 relative ${
+          className={`bg-gradient-to-b from-[#0d0b1e]/90 to-[#0a0818]/90 border rounded-2xl p-4 flex flex-col justify-between shadow-[0_8px_32px_rgba(0,0,0,0.5)] backdrop-blur-xl transition-all duration-200 relative ${
             currentFx.reverb.enabled
               ? 'border-purple-500/40 shadow-[0_0_20px_rgba(168,85,247,0.1)]'
-              : 'border-white/[0.06] opacity-75'
+              : 'border-violet-500/[0.07] opacity-75'
           }`}
         >
           <div className="absolute top-0 left-6 right-6 h-[2px] bg-purple-400/60 rounded-b-full" />
           <div>
-            <div className="flex items-center justify-between border-b border-white/[0.06] pb-3 mb-3.5">
+            <div className="flex items-center justify-between border-b border-violet-500/[0.08] pb-3 mb-3.5">
               <div className="flex items-center space-x-2">
                 <Waves className="w-4 h-4 text-purple-400" />
                 <span className="font-extrabold text-xs uppercase text-white tracking-wider font-sans">Space Reverb</span>
@@ -393,7 +393,7 @@ export const FxRackView: React.FC<FxRackViewProps> = ({
 
             {/* Reverb Controls */}
             <div className="flex flex-col gap-3 text-[11px]">
-              <div className="bg-[#0b0c12]/70 p-2 rounded-xl border border-white/[0.05]">
+              <div className="bg-[#08061a]/70 p-2 rounded-xl border border-violet-500/[0.08]">
                 <div className="flex justify-between text-zinc-400 mb-1 font-mono">
                   <span>Decay Time</span>
                   <span className="text-purple-300 font-bold">{currentFx.reverb.decay.toFixed(1)}s</span>
@@ -413,7 +413,7 @@ export const FxRackView: React.FC<FxRackViewProps> = ({
                 />
               </div>
 
-              <div className="bg-[#0b0c12]/70 p-2 rounded-xl border border-white/[0.05]">
+              <div className="bg-[#08061a]/70 p-2 rounded-xl border border-violet-500/[0.08]">
                 <div className="flex justify-between text-zinc-400 mb-1 font-mono">
                   <span>Dry / Wet Mix</span>
                   <span className="text-purple-300 font-bold">{Math.round(currentFx.reverb.mix * 100)}%</span>
@@ -465,15 +465,15 @@ export const FxRackView: React.FC<FxRackViewProps> = ({
 
         {/* 4. DELAY */}
         <div
-          className={`bg-gradient-to-b from-[#14161f]/90 to-[#101118]/90 border rounded-2xl p-4 flex flex-col justify-between shadow-[0_8px_32px_rgba(0,0,0,0.5)] backdrop-blur-xl transition-all duration-200 relative ${
+          className={`bg-gradient-to-b from-[#0d0b1e]/90 to-[#0a0818]/90 border rounded-2xl p-4 flex flex-col justify-between shadow-[0_8px_32px_rgba(0,0,0,0.5)] backdrop-blur-xl transition-all duration-200 relative ${
             currentFx.delay.enabled
               ? 'border-emerald-500/40 shadow-[0_0_20px_rgba(16,185,129,0.1)]'
-              : 'border-white/[0.06] opacity-75'
+              : 'border-violet-500/[0.07] opacity-75'
           }`}
         >
           <div className="absolute top-0 left-6 right-6 h-[2px] bg-emerald-400/60 rounded-b-full" />
           <div>
-            <div className="flex items-center justify-between border-b border-white/[0.06] pb-3 mb-3.5">
+            <div className="flex items-center justify-between border-b border-violet-500/[0.08] pb-3 mb-3.5">
               <div className="flex items-center space-x-2">
                 <Sparkles className="w-4 h-4 text-emerald-400" />
                 <span className="font-extrabold text-xs uppercase text-white tracking-wider font-sans">Stereo Delay</span>
@@ -498,7 +498,7 @@ export const FxRackView: React.FC<FxRackViewProps> = ({
 
             {/* Delay Controls */}
             <div className="flex flex-col gap-3 text-[11px]">
-              <div className="bg-[#0b0c12]/70 p-2 rounded-xl border border-white/[0.05]">
+              <div className="bg-[#08061a]/70 p-2 rounded-xl border border-violet-500/[0.08]">
                 <div className="flex justify-between text-zinc-400 mb-1 font-mono">
                   <span>Delay Time</span>
                   <span className="text-emerald-300 font-bold">{Math.round(currentFx.delay.time * 1000)} ms</span>
@@ -518,7 +518,7 @@ export const FxRackView: React.FC<FxRackViewProps> = ({
                 />
               </div>
 
-              <div className="bg-[#0b0c12]/70 p-2 rounded-xl border border-white/[0.05]">
+              <div className="bg-[#08061a]/70 p-2 rounded-xl border border-violet-500/[0.08]">
                 <div className="flex justify-between text-zinc-400 mb-1 font-mono">
                   <span>Feedback</span>
                   <span className="text-emerald-300 font-bold">{Math.round(currentFx.delay.feedback * 100)}%</span>
@@ -538,7 +538,7 @@ export const FxRackView: React.FC<FxRackViewProps> = ({
                 />
               </div>
 
-              <div className="bg-[#0b0c12]/70 p-2 rounded-xl border border-white/[0.05]">
+              <div className="bg-[#08061a]/70 p-2 rounded-xl border border-violet-500/[0.08]">
                 <div className="flex justify-between text-zinc-400 mb-1 font-mono">
                   <span>Dry / Wet Mix</span>
                   <span className="text-emerald-300 font-bold">{Math.round(currentFx.delay.mix * 100)}%</span>
@@ -567,15 +567,15 @@ export const FxRackView: React.FC<FxRackViewProps> = ({
 
         {/* 5. SATURATION / DISTORTION */}
         <div
-          className={`bg-gradient-to-b from-[#14161f]/90 to-[#101118]/90 border rounded-2xl p-4 flex flex-col justify-between shadow-[0_8px_32px_rgba(0,0,0,0.5)] backdrop-blur-xl transition-all duration-200 relative ${
+          className={`bg-gradient-to-b from-[#0d0b1e]/90 to-[#0a0818]/90 border rounded-2xl p-4 flex flex-col justify-between shadow-[0_8px_32px_rgba(0,0,0,0.5)] backdrop-blur-xl transition-all duration-200 relative ${
             currentFx.saturation.enabled
               ? 'border-pink-500/40 shadow-[0_0_20px_rgba(236,72,153,0.1)]'
-              : 'border-white/[0.06] opacity-75'
+              : 'border-violet-500/[0.07] opacity-75'
           }`}
         >
           <div className="absolute top-0 left-6 right-6 h-[2px] bg-pink-400/60 rounded-b-full" />
           <div>
-            <div className="flex items-center justify-between border-b border-white/[0.06] pb-3 mb-3.5">
+            <div className="flex items-center justify-between border-b border-violet-500/[0.08] pb-3 mb-3.5">
               <div className="flex items-center space-x-2">
                 <Zap className="w-4 h-4 text-pink-400" />
                 <span className="font-extrabold text-xs uppercase text-white tracking-wider font-sans">Warm Drive</span>
@@ -600,7 +600,7 @@ export const FxRackView: React.FC<FxRackViewProps> = ({
 
             {/* Saturation Controls */}
             <div className="flex flex-col gap-3 text-[11px]">
-              <div className="bg-[#0b0c12]/70 p-2 rounded-xl border border-white/[0.05]">
+              <div className="bg-[#08061a]/70 p-2 rounded-xl border border-violet-500/[0.08]">
                 <div className="flex justify-between text-zinc-400 mb-1 font-mono">
                   <span>Drive</span>
                   <span className="text-pink-300 font-bold">{Math.round(currentFx.saturation.drive * 100)}%</span>
@@ -620,7 +620,7 @@ export const FxRackView: React.FC<FxRackViewProps> = ({
                 />
               </div>
 
-              <div className="bg-[#0b0c12]/70 p-2 rounded-xl border border-white/[0.05]">
+              <div className="bg-[#08061a]/70 p-2 rounded-xl border border-violet-500/[0.08]">
                 <div className="flex justify-between text-zinc-400 mb-1 font-mono">
                   <span>Harmonic Tone</span>
                   <span className="text-pink-300 font-bold">{Math.round(currentFx.saturation.tone * 100)}%</span>
@@ -640,7 +640,7 @@ export const FxRackView: React.FC<FxRackViewProps> = ({
                 />
               </div>
 
-              <div className="bg-[#0b0c12]/70 p-2 rounded-xl border border-white/[0.05]">
+              <div className="bg-[#08061a]/70 p-2 rounded-xl border border-violet-500/[0.08]">
                 <div className="flex justify-between text-zinc-400 mb-1 font-mono">
                   <span>Dry / Wet Mix</span>
                   <span className="text-pink-300 font-bold">{Math.round(currentFx.saturation.mix * 100)}%</span>

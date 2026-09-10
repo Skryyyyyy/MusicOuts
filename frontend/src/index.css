@@ -4,57 +4,20 @@
 
 @layer base {
   body {
-    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
-    background-color: #000000;
-    color: #f4f4f5;
+    background-color: #08090F;
+    color: #E4E4F0;
   }
-
-  /* Custom monochromatic scrollbar styling */
-  ::-webkit-scrollbar {
-    width: 5px;
-    height: 5px;
-  }
-
-  ::-webkit-scrollbar-track {
-    background: #000000;
-  }
-
-  ::-webkit-scrollbar-thumb {
-    background: #1f2026;
-    border-radius: 9999px;
-  }
-
-  ::-webkit-scrollbar-thumb:hover {
-    background: #3f3f46;
-  }
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(124,58,237,0.4); border-radius:9999px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(124,58,237,0.7); }
 }
 
 @layer utilities {
-  /* Studio vertical fader range slider */
-  .range-fader-vertical {
-    -webkit-appearance: slider-vertical;
-    writing-mode: bt-lr;
-    width: 24px;
-    height: 100%;
-    background: transparent;
-    cursor: pointer;
-  }
-
-  /* Monochromatic high contrast text & glow */
-  .text-glow-mono {
-    text-shadow: 0 0 10px rgba(255, 255, 255, 0.6), 0 0 20px rgba(255, 255, 255, 0.2);
-  }
-
-  .text-glow-cyan,
-  .text-glow-magenta,
-  .text-glow-yellow,
-  .text-glow-green {
-    text-shadow: 0 0 8px rgba(255, 255, 255, 0.5), 0 0 16px rgba(255, 255, 255, 0.15);
-  }
-
-  .border-glow-cyan,
-  .border-glow-magenta {
-    box-shadow: 0 0 15px rgba(255, 255, 255, 0.15);
-  }
+  .range-fader-vertical { -webkit-appearance:slider-vertical; writing-mode:bt-lr; width:24px; height:100%; background:transparent; cursor:pointer; }
+  .text-glow-mono { text-shadow:0 0 12px rgba(167,139,250,0.7),0 0 24px rgba(124,58,237,0.3); }
+  .glow-violet { box-shadow:0 0 20px rgba(124,58,237,0.4),0 0 40px rgba(91,33,182,0.15); }
+  .glow-blue { box-shadow:0 0 20px rgba(59,130,246,0.4),0 0 40px rgba(37,99,235,0.15); }
+  .border-glow-cyan { box-shadow:0 0 16px rgba(59,130,246,0.2); }
+  .border-glow-magenta { box-shadow:0 0 16px rgba(124,58,237,0.25); }
 }
-
