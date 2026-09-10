@@ -321,7 +321,9 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
       const numBars = Math.max(120, Math.floor(width / 3.5));
       const peakData = audioGraph?.getStemPeakData(stem, numBars) || new Float32Array(numBars);
       const barWidth = width / numBars;
-      const progressIndex = Math.floor((progressPercent / 100) * numBars);
+      const stemTime = stemTimes[stem] !== undefined ? stemTimes[stem] : currentTime;
+      const stemPercent = duration > 0 ? (stemTime / duration) * 100 : 0;
+      const progressIndex = Math.floor((stemPercent / 100) * numBars);
       const waveColor = STEM_CONFIGS[stem].waveColor;
 
       for (let i = 0; i < numBars; i++) {
@@ -380,7 +382,7 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
 
       ctx.restore();
     }
-  }, [audioGraph, progressPercent, duration, showAutomation, automationPoints]);
+  }, [audioGraph, stemTimes, currentTime, duration, showAutomation, automationPoints]);
 
   const formatRulerTime = (secs: number): string => {
     const m = Math.floor(secs / 60);
@@ -404,14 +406,149 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
     onSliceClip(selectedClipId, currentTime);
   };
 
+  // Reset single stem offset back to 0
+  const handleResetSingleStem = (stem: StemType) => {
+    if (audioGraph) {
+      audioGraph.seekStem(stem, currentTime);
+    }
+    setStemTimes((prev) => ({
+      ...prev,
+      [stem]: currentTime,
+    }));
+  };
+
   return (
     <div className={`bg-[#141518] border border-[#262830] rounded-lg flex flex-col overflow-hidden shadow-2xl select-none ${className}`}>
-      {/* 1. Cubase Toolbar & Separated 2-Row Timeline Header */}
-      <div className="flex flex-col border-b border-[#262830] bg-[#1a1b20] z-20">
-        {/* ROW 1: Marker Track / Arranger Section Lane (No overlap with beat ruler!) */}
-        <div className="flex border-b border-[#242630] bg-[#16171d] h-7">
+      {/* 1. Primary Full-Width Arrangement Studio Action Toolbar */}
+      <div className="h-9 px-3 bg-[#181920] border-b border-[#262830] flex items-center justify-between z-30 shrink-0 select-none">
+        <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-1.5 text-xs font-mono font-bold text-zinc-200">
+            <Sliders className="w-3.5 h-3.5 text-cyan-400" />
+            <span className="uppercase tracking-wider">Arrangement Timeline</span>
+          </div>
+
+          <span className="text-zinc-700">|</span>
+
+          {/* Independent / Linked Mode Toggle Button */}
+          <button
+            onClick={() => setIsIndependentMode(!isIndependentMode)}
+            className={`flex items-center space-x-1.5 px-2.5 py-1 rounded text-[10px] border font-bold transition-all ${
+              isIndependentMode
+                ? 'bg-amber-500/15 text-amber-300 border-amber-500/40 shadow-sm shadow-amber-500/10'
+                : 'bg-cyan-600/90 text-white border-cyan-400 shadow-sm'
+            }`}
+            title="Toggle Independent Stem Playhead Scrubbing vs Linked Playheads"
+          >
+            <Sliders className="w-3 h-3" />
+            <span>{isIndependentMode ? '⚡ INDEPENDENT STEM BARS' : '🔗 LINKED PLAYHEADS'}</span>
+          </button>
+
+          {/* Re-align All Stem Offsets */}
+          {audioGraph && (
+            <button
+              onClick={() => {
+                audioGraph.resetStemOffsets();
+                const now = audioGraph.getCurrentTime();
+                setStemTimes({ vocals: now, drums: now, bass: now, other: now });
+              }}
+              className="flex items-center space-x-1 px-2 py-1 rounded text-[10px] bg-[#1d1f27] hover:bg-[#282b36] text-zinc-300 hover:text-white border border-zinc-700 font-bold transition-all"
+              title="Re-align all stem playheads back to sync with master playhead"
+            >
+              <span>↺ ALIGN ALL</span>
+            </button>
+          )}
+
+          {/* Slice Clip Tool Button */}
+          {onSliceClip && (
+            <button
+              onClick={handleSliceCurrentClip}
+              className="flex items-center space-x-1 px-2 py-1 rounded text-[10px] bg-[#1d1f27] hover:bg-[#282b36] text-amber-400 hover:text-amber-300 border border-amber-500/30 font-bold transition-all"
+              title="Slice / Split Active Clip at Playhead (S)"
+            >
+              <Scissors className="w-3 h-3" />
+              <span>SPLIT</span>
+            </button>
+          )}
+
+          {/* Media Pool Drawer Toggle */}
+          {songs.length > 0 && (
+            <button
+              onClick={() => setShowMediaPool(!showMediaPool)}
+              className={`flex items-center space-x-1.5 px-2.5 py-1 rounded text-[10px] border font-bold transition-all ${
+                showMediaPool
+                  ? 'bg-cyan-600 text-white border-cyan-400 shadow-sm'
+                  : 'bg-[#1d1f27] text-zinc-300 border-zinc-700 hover:text-white'
+              }`}
+              title="Open Multi-Song Media Pool"
+            >
+              <Plus className="w-3 h-3" />
+              <span>SONG POOL ({songs.length})</span>
+            </button>
+          )}
+
+          {/* Automation Toggle Button */}
+          {onToggleAutomation && (
+            <button
+              onClick={onToggleAutomation}
+              className={`flex items-center space-x-1 px-2 py-1 rounded text-[10px] border font-bold transition-all ${
+                showAutomation
+                  ? 'bg-pink-500/20 text-pink-300 border-pink-500/50 shadow-sm'
+                  : 'bg-[#1d1f27] text-zinc-400 border-zinc-700 hover:text-zinc-200'
+              }`}
+              title="Toggle Automation Curves Overlay"
+            >
+              <Activity className="w-3 h-3" />
+              <span>AUTO</span>
+            </button>
+          )}
+        </div>
+
+        <div className="flex items-center space-x-2 text-[10px] font-mono text-zinc-400">
+          <span className="text-zinc-500">GRID: <strong className="text-zinc-300">1/16 BAR</strong></span>
+          <span className="text-zinc-700">|</span>
+          <span className="text-zinc-500">MASTER: <strong className="text-cyan-400">{formatRulerTime(currentTime)}</strong> / {formatRulerTime(duration || 180)}</span>
+        </div>
+      </div>
+
+      {/* Multi-Song Media Pool Drawer */}
+      {showMediaPool && songs.length > 0 && (
+        <div className="bg-[#101115] border-b border-[#242630] p-2.5 flex items-center space-x-3 overflow-x-auto text-xs font-mono shrink-0">
+          <span className="text-zinc-400 font-bold uppercase tracking-wider text-[10px] shrink-0">
+            Project Song Pool:
+          </span>
+          {songs.map((song) => (
+            <div
+              key={song.id}
+              className="flex items-center space-x-2 bg-[#171820] border border-[#2b2d38] px-2.5 py-1 rounded-lg shrink-0"
+            >
+              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: song.color }} />
+              <span className="text-zinc-200 font-bold text-[11px]">{song.title}</span>
+              <span className="text-zinc-500 text-[10px]">({formatRulerTime(song.duration)})</span>
+              {onAddClip && (
+                <div className="flex items-center space-x-1 pl-1 border-l border-zinc-700">
+                  {STEM_TYPES.map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => onAddClip(song.id, s)}
+                      className="px-1.5 py-0.5 bg-[#20222c] hover:bg-cyan-700 text-[9px] text-zinc-300 hover:text-white rounded uppercase font-bold"
+                      title={`Add ${s} clip to timeline`}
+                    >
+                      +{s[0].toUpperCase()}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* 2. Structured Multi-Row Timeline Container */}
+      <div className="flex flex-col flex-1 overflow-y-auto">
+        {/* ROW 1: Marker Track / Arranger Section Lane */}
+        <div className="flex border-b border-[#242630] bg-[#16171d] h-7 shrink-0">
           {/* Left Label */}
-          <div className="w-72 sm:w-80 px-3 py-1 border-r border-[#242630] flex items-center justify-between text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-wider shrink-0">
+          <div className="w-72 sm:w-80 px-3 py-1 border-r border-[#262830] flex items-center justify-between text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-wider shrink-0">
             <div className="flex items-center space-x-1.5">
               <span className="w-2 h-2 rounded-full bg-cyan-400" />
               <span>Section Markers</span>
@@ -439,98 +576,21 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
         </div>
 
         {/* ROW 2: Measure & Timecode Ruler Grid */}
-        <div className="flex h-8 bg-[#0c0d10]">
-          {/* Left Track Header Title & Tools */}
-          <div className="w-72 sm:w-80 px-3 py-1 border-r border-[#262830] flex items-center justify-between text-[11px] font-mono font-bold text-zinc-300 uppercase tracking-wider shrink-0">
-            <div className="flex items-center space-x-2">
-              <Sliders className="w-3.5 h-3.5 text-zinc-400" />
-              <span>Stem Tracks</span>
-            </div>
-
-            <div className="flex items-center space-x-1.5">
-              {/* Independent / Linked Mode Toggle Button */}
-              <button
-                onClick={() => setIsIndependentMode(!isIndependentMode)}
-                className={`flex items-center space-x-1 px-2 py-0.5 rounded text-[9px] border font-bold transition-all ${
-                  isIndependentMode
-                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-sm'
-                    : 'bg-cyan-600 text-white border-cyan-400'
-                }`}
-                title="Toggle Independent Stem Playhead Scrubbing vs Linked"
-              >
-                <Sliders className="w-2.5 h-2.5" />
-                <span>{isIndependentMode ? '⚡ INDEPENDENT BARS' : '🔗 LINKED'}</span>
-              </button>
-
-              {/* Re-align All Stem Offsets */}
-              {audioGraph && (
-                <button
-                  onClick={() => {
-                    audioGraph.resetStemOffsets();
-                    const now = audioGraph.getCurrentTime();
-                    setStemTimes({ vocals: now, drums: now, bass: now, other: now });
-                  }}
-                  className="flex items-center space-x-1 px-1.5 py-0.5 rounded text-[9px] bg-[#1a1b22] hover:bg-[#252834] text-zinc-400 hover:text-white border border-zinc-700 font-bold transition-all"
-                  title="Re-align all stem playheads back to sync"
-                >
-                  <span>↺ ALIGN</span>
-                </button>
-              )}
-
-              {/* Slice Clip Tool Button */}
-              {onSliceClip && (
-                <button
-                  onClick={handleSliceCurrentClip}
-                  className="flex items-center space-x-1 px-1.5 py-0.5 rounded text-[9px] bg-[#171820] hover:bg-[#252834] text-amber-400 border border-amber-500/30 font-bold transition-all"
-                  title="Slice / Split Active Clip at Playhead (S)"
-                >
-                  <Scissors className="w-2.5 h-2.5" />
-                  <span>SPLIT</span>
-                </button>
-              )}
-
-              {/* Media Pool Drawer Toggle */}
-              {songs.length > 1 && (
-                <button
-                  onClick={() => setShowMediaPool(!showMediaPool)}
-                  className={`flex items-center space-x-1 px-1.5 py-0.5 rounded text-[9px] border font-bold transition-all ${
-                    showMediaPool
-                      ? 'bg-cyan-600 text-white border-cyan-400 shadow-sm'
-                      : 'bg-[#121316] text-zinc-400 border-zinc-700 hover:text-white'
-                  }`}
-                  title="Open Multi-Song Media Pool"
-                >
-                  <Plus className="w-2.5 h-2.5" />
-                  <span>POOL</span>
-                </button>
-              )}
-
-              {/* Automation Toggle Button */}
-              {onToggleAutomation && (
-                <button
-                  onClick={onToggleAutomation}
-                  className={`flex items-center space-x-1 px-1.5 py-0.5 rounded text-[9px] border font-bold transition-all ${
-                    showAutomation
-                      ? 'bg-pink-500/20 text-pink-300 border-pink-500/50 shadow-sm'
-                      : 'bg-[#121316] text-zinc-500 border-zinc-700 hover:text-zinc-300'
-                  }`}
-                  title="Toggle Automation Curves Overlay"
-                >
-                  <Activity className="w-2.5 h-2.5" />
-                  <span>AUTO</span>
-                </button>
-              )}
-            </div>
+        <div className="flex h-8 bg-[#0c0d10] border-b border-[#262830] shrink-0">
+          {/* Left Ruler Header */}
+          <div className="w-72 sm:w-80 px-3 py-1 border-r border-[#262830] flex items-center justify-between text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-wider shrink-0">
+            <span className="text-zinc-300">Measure Ruler</span>
+            <span className="text-[9px] text-zinc-500">BAR / TIME</span>
           </div>
 
           {/* Timeline Ruler Grid */}
           <div
             ref={timelineContainerRef}
             onMouseDown={handleMouseDown}
-            className={`relative flex-1 h-full bg-[#0a0b0e] overflow-hidden border-b border-[#262830] group ${
+            className={`relative flex-1 h-full bg-[#0a0b0e] overflow-hidden group ${
               isScrubbing ? 'cursor-grabbing' : 'cursor-pointer'
             }`}
-            title="Timeline Ruler - Click or drag to seek"
+            title="Global Timeline Ruler - Click or drag to seek master timeline"
           >
             {/* Sub-beat Ruler Grid Marks (Clean spacing, no collision) */}
             <div className="absolute inset-0 flex justify-between px-2 pointer-events-none">
@@ -565,284 +625,269 @@ export const ArrangementView: React.FC<ArrangementViewProps> = ({
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Multi-Song Media Pool Drawer */}
-      {showMediaPool && songs.length > 0 && (
-        <div className="bg-[#101115] border-b border-[#242630] p-2.5 flex items-center space-x-3 overflow-x-auto text-xs font-mono">
-          <span className="text-zinc-400 font-bold uppercase tracking-wider text-[10px] shrink-0">
-            Project Song Pool:
-          </span>
-          {songs.map((song) => (
-            <div
-              key={song.id}
-              className="flex items-center space-x-2 bg-[#171820] border border-[#2b2d38] px-2.5 py-1 rounded-lg shrink-0"
-            >
-              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: song.color }} />
-              <span className="text-zinc-200 font-bold text-[11px]">{song.title}</span>
-              <span className="text-zinc-500 text-[10px]">({formatRulerTime(song.duration)})</span>
-              {onAddClip && (
-                <div className="flex items-center space-x-1 pl-1 border-l border-zinc-700">
-                  {STEM_TYPES.map((s) => (
-                    <button
-                      key={s}
-                      onClick={() => onAddClip(song.id, s)}
-                      className="px-1 py-0.2 bg-[#20222c] hover:bg-cyan-700 text-[9px] text-zinc-300 hover:text-white rounded uppercase"
-                      title={`Add ${s} clip to timeline`}
-                    >
-                      +{s[0]}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+        {/* ROWS 3-6: 4-Stem Multi-Track Arrangement Lanes */}
+        <div className="flex-1 flex flex-col divide-y divide-[#22242c] bg-[#0d0e11]">
+          {STEM_TYPES.map((stem) => {
+            const config = STEM_CONFIGS[stem];
+            const state = stemStates[stem] || { volume: 1.0, muted: false, solo: false, pan: 0 };
+            const vu = vuLevels[stem] || 0;
+            const stemClips = clips.filter((c) => c.stem === stem);
+            const stemCurrentTime = stemTimes[stem] !== undefined ? stemTimes[stem] : currentTime;
+            const stemProgress = duration > 0 ? (stemCurrentTime / duration) * 100 : 0;
+            const stemOffset = stemCurrentTime - currentTime;
+            const hasOffset = Math.abs(stemOffset) > 0.08;
 
-      {/* 2. 4-Stem Multi-Track Arrangement Lanes */}
-      <div className="flex-1 flex flex-col divide-y divide-[#22242c] bg-[#0d0e11]">
-        {STEM_TYPES.map((stem) => {
-          const config = STEM_CONFIGS[stem];
-          const state = stemStates[stem] || { volume: 1.0, muted: false, solo: false, pan: 0 };
-          const vu = vuLevels[stem] || 0;
-          const stemClips = clips.filter((c) => c.stem === stem);
-          const stemCurrentTime = stemTimes[stem] !== undefined ? stemTimes[stem] : currentTime;
-          const stemProgress = duration > 0 ? (stemCurrentTime / duration) * 100 : 0;
+            const isLeftHandControlled = stem === 'vocals' && gestureState?.leftHand.present;
+            const isRightHandControlled = stem !== 'vocals' && gestureState?.rightHand.present;
 
-          const isLeftHandControlled = stem === 'vocals' && gestureState?.leftHand.present;
-          const isRightHandControlled = stem !== 'vocals' && gestureState?.rightHand.present;
+            return (
+              <div key={stem} className="flex min-h-[105px] group transition-colors hover:bg-[#14151a]">
+                {/* Left Column: Track Header Strip (Strictly matched w-72 sm:w-80 width) */}
+                <div className="w-72 sm:w-80 p-3 bg-[#17181d] border-r border-[#262830] flex flex-col justify-between space-y-1.5 relative shrink-0">
+                  {/* Left Colored Spine Bar */}
+                  <div
+                    className="absolute left-0 top-0 bottom-0 w-1"
+                    style={{ backgroundColor: config.color }}
+                  />
 
-          return (
-            <div key={stem} className="flex min-h-[105px] group transition-colors hover:bg-[#14151a]">
-              {/* Left Column: Track Header Strip */}
-              <div className="w-72 sm:w-80 p-3 bg-[#17181d] border-r border-[#262830] flex flex-col justify-between space-y-1.5 relative shrink-0">
-                {/* Left Colored Spine Bar */}
-                <div
-                  className="absolute left-0 top-0 bottom-0 w-1"
-                  style={{ backgroundColor: config.color }}
-                />
-
-                {/* Track Title, Routing & Badges */}
-                <div className="flex items-center justify-between pl-1.5">
-                  <div className="flex items-center space-x-2">
-                    <div className="p-1 rounded bg-[#101114] border border-[#262830]">
-                      {config.icon}
-                    </div>
-                    <div>
-                      <div className="flex items-center space-x-1.5">
-                        <h4 className="text-[11px] font-mono font-bold text-zinc-100 tracking-wide leading-none">
-                          {config.name}
-                        </h4>
-                        <span className="text-[8px] font-mono font-bold px-1 py-0.2 rounded bg-black/60 border border-[#262830] text-zinc-300" style={{ color: config.color }}>
-                          {formatRulerTime(stemCurrentTime)}
+                  {/* Track Title, Timecode & Quick Alignment Reset */}
+                  <div className="flex items-center justify-between pl-1.5">
+                    <div className="flex items-center space-x-2 truncate">
+                      <div className="p-1 rounded bg-[#101114] border border-[#262830] shrink-0">
+                        {config.icon}
+                      </div>
+                      <div className="truncate">
+                        <div className="flex items-center space-x-1.5">
+                          <h4 className="text-[11px] font-mono font-bold text-zinc-100 tracking-wide leading-none truncate">
+                            {config.name}
+                          </h4>
+                        </div>
+                        <span className="text-[8px] font-mono text-zinc-500 truncate block">
+                          {config.routing}
                         </span>
                       </div>
-                      <span className="text-[8px] font-mono text-zinc-500">
-                        {config.routing}
+                    </div>
+
+                    {/* Time Badge + Single Stem Align Reset Button */}
+                    <div className="flex items-center space-x-1 shrink-0">
+                      <span
+                        className="text-[8px] font-mono font-bold px-1.5 py-0.5 rounded bg-black/60 border border-[#262830]"
+                        style={{ color: config.color }}
+                        title={`${config.shortName} Playback Time`}
+                      >
+                        {formatRulerTime(stemCurrentTime)}
+                      </span>
+                      {hasOffset && (
+                        <button
+                          onClick={() => handleResetSingleStem(stem)}
+                          className="text-[8px] font-mono font-bold px-1 py-0.5 rounded bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 border border-amber-500/40 transition-all"
+                          title="Reset this stem's offset back to master playhead (0.0s)"
+                        >
+                          ↺ 0s
+                        </button>
+                      )}
+                      {(isLeftHandControlled || isRightHandControlled) && (
+                        <span className="text-[7px] font-mono font-bold px-1 py-0.2 rounded bg-red-600 text-white animate-pulse">
+                          GESTURE
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Quick Track Controls: Mute, Solo, Volume, Pan */}
+                  <div className="flex items-center space-x-1.5 text-xs font-mono pl-1.5">
+                    <button
+                      onClick={() => onStemMuteToggle(stem)}
+                      className={`w-6 h-6 rounded text-[10px] font-bold border transition-all flex items-center justify-center ${
+                        state.muted
+                          ? 'bg-red-600 text-white border-red-500 shadow-[0_0_8px_rgba(220,38,38,0.5)]'
+                          : 'bg-[#1c1e24] border-[#2d303a] text-zinc-400 hover:text-white'
+                      }`}
+                      title={`Mute ${config.shortName}`}
+                    >
+                      M
+                    </button>
+
+                    <button
+                      onClick={() => onStemSoloToggle(stem)}
+                      className={`w-6 h-6 rounded text-[10px] font-bold border transition-all flex items-center justify-center ${
+                        state.solo
+                          ? 'bg-amber-400 text-black border-amber-300 shadow-[0_0_8px_rgba(251,191,36,0.5)]'
+                          : 'bg-[#1c1e24] border-[#2d303a] text-zinc-400 hover:text-white'
+                      }`}
+                      title={`Solo ${config.shortName}`}
+                    >
+                      S
+                    </button>
+
+                    <div className="flex-1 flex items-center space-x-1 bg-[#101114] px-1.5 py-1 rounded border border-[#24262e]">
+                      <span className="text-[8px] text-zinc-400 font-bold">VOL</span>
+                      <input
+                        type="range"
+                        min="0"
+                        max="1.5"
+                        step="0.01"
+                        value={state.volume}
+                        onChange={(e) => onStemVolumeChange(stem, parseFloat(e.target.value))}
+                        className="w-full h-1 bg-zinc-800 rounded appearance-none cursor-pointer accent-cyan-400"
+                      />
+                      <span className="text-[8px] text-zinc-200 font-mono w-6 text-right">
+                        {Math.round(state.volume * 100)}%
                       </span>
                     </div>
-                  </div>
 
-                  {(isLeftHandControlled || isRightHandControlled) && (
-                    <span className="text-[7px] font-mono font-bold px-1 py-0.2 rounded bg-red-600 text-white animate-pulse">
-                      GESTURE LINK
-                    </span>
-                  )}
-                </div>
-
-                {/* Quick Track Controls: Mute, Solo, Volume, Pan */}
-                <div className="flex items-center space-x-1.5 text-xs font-mono pl-1.5">
-                  <button
-                    onClick={() => onStemMuteToggle(stem)}
-                    className={`w-6 h-6 rounded text-[10px] font-bold border transition-all flex items-center justify-center ${
-                      state.muted
-                        ? 'bg-red-600 text-white border-red-500 shadow-[0_0_8px_rgba(220,38,38,0.5)]'
-                        : 'bg-[#1c1e24] border-[#2d303a] text-zinc-400 hover:text-white'
-                    }`}
-                    title={`Mute ${config.shortName}`}
-                  >
-                    M
-                  </button>
-
-                  <button
-                    onClick={() => onStemSoloToggle(stem)}
-                    className={`w-6 h-6 rounded text-[10px] font-bold border transition-all flex items-center justify-center ${
-                      state.solo
-                        ? 'bg-amber-400 text-black border-amber-300 shadow-[0_0_8px_rgba(251,191,36,0.5)]'
-                        : 'bg-[#1c1e24] border-[#2d303a] text-zinc-400 hover:text-white'
-                    }`}
-                    title={`Solo ${config.shortName}`}
-                  >
-                    S
-                  </button>
-
-                  <div className="flex-1 flex items-center space-x-1 bg-[#101114] px-1.5 py-1 rounded border border-[#24262e]">
-                    <span className="text-[8px] text-zinc-400 font-bold">VOL</span>
-                    <input
-                      type="range"
-                      min="0"
-                      max="1.5"
-                      step="0.01"
-                      value={state.volume}
-                      onChange={(e) => onStemVolumeChange(stem, parseFloat(e.target.value))}
-                      className="w-full h-1 bg-zinc-800 rounded appearance-none cursor-pointer accent-cyan-400"
-                    />
-                    <span className="text-[8px] text-zinc-200 font-mono w-6 text-right">
-                      {Math.round(state.volume * 100)}%
-                    </span>
-                  </div>
-
-                  <div className="flex items-center space-x-1 bg-[#101114] px-1 py-1 rounded border border-[#24262e]">
-                    <span className="text-[7px] text-zinc-400 font-bold">PAN</span>
-                    <input
-                      type="range"
-                      min="-1.0"
-                      max="1.0"
-                      step="0.05"
-                      value={state.pan}
-                      onChange={(e) => onStemPanChange(stem, parseFloat(e.target.value))}
-                      className="w-8 h-1 bg-zinc-800 rounded appearance-none cursor-pointer accent-white"
-                    />
-                  </div>
-                </div>
-
-                {/* Real-time LED Peak VU Meter Strip */}
-                <div className="w-full h-1 bg-black rounded-full overflow-hidden border border-[#22242c] pl-1.5">
-                  <div
-                    className="h-full bg-gradient-to-r from-emerald-500 via-amber-400 to-red-500 transition-all duration-75"
-                    style={{ width: `${Math.min(100, vu * 100)}%` }}
-                  />
-                </div>
-              </div>
-
-              {/* Right Column: Audio Clips Timeline Lane & Independent Laser Playhead */}
-              <div
-                ref={(el) => (stemLaneRefs.current[stem] = el)}
-                onMouseDown={(e) => handleStemMouseDown(stem, e)}
-                className={`relative flex-1 bg-[#0a0b0d] overflow-hidden p-1.5 group ${
-                  scrubbingStem === stem ? 'cursor-grabbing' : 'cursor-pointer'
-                }`}
-                title={`Click or drag to seek ${config.shortName} independently (${formatRulerTime(stemCurrentTime)})`}
-              >
-                <div
-                  className="relative w-full h-full rounded border border-zinc-800/80 overflow-hidden"
-                  style={{ backgroundColor: config.bgTint }}
-                >
-                  {/* Stem Background Waveform Canvas */}
-                  <canvas
-                    ref={(el) => (canvasRefs.current[stem] = el)}
-                    className="absolute inset-0 w-full h-full pointer-events-none"
-                  />
-
-                  {/* Interactive Audio Clips (if clips exist) */}
-                  {stemClips.map((clip) => {
-                    const clipStartRatio = (clip.startTime / (duration || 180)) * 100;
-                    const clipWidthRatio = (clip.duration / (duration || 180)) * 100;
-                    const isSelected = selectedClipId === clip.id;
-
-                    return (
-                      <div
-                        key={clip.id}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedClipId(clip.id);
-                        }}
-                        style={{
-                          left: `${clipStartRatio}%`,
-                          width: `${clipWidthRatio}%`,
-                        }}
-                        className={`absolute top-1 bottom-1 rounded border shadow-md flex flex-col justify-between p-1 z-10 transition-all ${
-                          isSelected
-                            ? 'border-cyan-400 bg-cyan-950/70 shadow-[0_0_12px_rgba(6,182,212,0.4)]'
-                            : 'border-zinc-700/80 bg-[#15161c]/80 hover:border-zinc-500'
-                        }`}
-                      >
-                        {/* Clip Header Bar */}
-                        <div className="flex items-center justify-between text-[8px] font-mono font-bold text-zinc-300">
-                          <span className="truncate max-w-[90px]">{clip.name || clip.songTitle}</span>
-                          <div className="flex items-center space-x-1">
-                            {onDuplicateClip && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onDuplicateClip(clip.id);
-                                }}
-                                className="p-0.5 hover:text-cyan-300"
-                                title="Duplicate Clip"
-                              >
-                                <Copy className="w-2.5 h-2.5" />
-                              </button>
-                            )}
-                            {onDeleteClip && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onDeleteClip(clip.id);
-                                }}
-                                className="p-0.5 hover:text-red-400"
-                                title="Delete Clip Slice"
-                              >
-                                <Trash2 className="w-2.5 h-2.5" />
-                              </button>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Clip Time Duration Badge */}
-                        <div className="text-[7px] text-zinc-500 font-mono flex justify-between items-center">
-                          <span>{formatRulerTime(clip.startTime)}</span>
-                          <span>{clip.duration.toFixed(1)}s</span>
-                        </div>
-                      </div>
-                    );
-                  })}
-
-                  {/* Played Region Shading Overlay (Tracks Stem Progress Independently) */}
-                  <div
-                    className="absolute top-0 bottom-0 left-0 bg-white/5 pointer-events-none border-r transition-all duration-75"
-                    style={{
-                      width: `${stemProgress}%`,
-                      borderColor: config.color,
-                    }}
-                  />
-
-                  {/* Grid Lines Overlay */}
-                  <div className="absolute inset-0 flex justify-between pointer-events-none px-2 opacity-20">
-                    {rulerTicks.map((_, i) => (
-                      <div key={i} className="w-px h-full bg-zinc-700" />
-                    ))}
-                  </div>
-
-                  {/* Independent Moving Playhead Laser Bar (Separate on each stem!) */}
-                  <div
-                    className="absolute top-0 bottom-0 w-1 pointer-events-none z-20 transition-all duration-75"
-                    style={{
-                      left: `calc(${stemProgress}% - 1px)`,
-                      backgroundColor: config.color,
-                      boxShadow: `0 0 10px ${config.color}`,
-                    }}
-                  >
-                    <div
-                      className="w-2 h-3.5 -translate-x-[2px] rounded-full shadow-md flex items-center justify-center text-[7px] font-bold text-black"
-                      style={{ backgroundColor: config.color }}
-                    >
-                      ▼
+                    <div className="flex items-center space-x-1 bg-[#101114] px-1 py-1 rounded border border-[#24262e]">
+                      <span className="text-[7px] text-zinc-400 font-bold">PAN</span>
+                      <input
+                        type="range"
+                        min="-1.0"
+                        max="1.0"
+                        step="0.05"
+                        value={state.pan}
+                        onChange={(e) => onStemPanChange(stem, parseFloat(e.target.value))}
+                        className="w-8 h-1 bg-zinc-800 rounded appearance-none cursor-pointer accent-white"
+                      />
                     </div>
                   </div>
 
-                  {/* Default Track Info Tag */}
-                  <div className="absolute top-1.5 left-2 pointer-events-none flex items-center space-x-1.5 text-[8px] font-mono font-bold text-zinc-400 bg-black/75 px-1.5 py-0.5 rounded border border-zinc-800 z-10">
-                    <span style={{ color: config.color }}>●</span>
-                    <span className="text-zinc-200">{trackMetadata?.title || 'DEMUCS_STEM'}</span>
-                    <span className="text-zinc-500">[{config.shortName}.WAV]</span>
-                    <span className="font-mono text-cyan-300 ml-1 font-bold">[{formatRulerTime(stemCurrentTime)}]</span>
+                  {/* Real-time LED Peak VU Meter Strip */}
+                  <div className="w-full h-1 bg-black rounded-full overflow-hidden border border-[#22242c] pl-1.5">
+                    <div
+                      className="h-full bg-gradient-to-r from-emerald-500 via-amber-400 to-red-500 transition-all duration-75"
+                      style={{ width: `${Math.min(100, vu * 100)}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Right Column: Audio Clips Timeline Lane & Independent Laser Playhead */}
+                <div
+                  ref={(el) => (stemLaneRefs.current[stem] = el)}
+                  onMouseDown={(e) => handleStemMouseDown(stem, e)}
+                  className={`relative flex-1 bg-[#0a0b0d] overflow-hidden p-1.5 group ${
+                    scrubbingStem === stem ? 'cursor-grabbing' : 'cursor-pointer'
+                  }`}
+                  title={`Click or drag to seek ${config.shortName} independently (${formatRulerTime(stemCurrentTime)})`}
+                >
+                  <div
+                    className="relative w-full h-full rounded border border-zinc-800/80 overflow-hidden"
+                    style={{ backgroundColor: config.bgTint }}
+                  >
+                    {/* Stem Background Waveform Canvas */}
+                    <canvas
+                      ref={(el) => (canvasRefs.current[stem] = el)}
+                      className="absolute inset-0 w-full h-full pointer-events-none"
+                    />
+
+                    {/* Interactive Audio Clips (if clips exist) */}
+                    {stemClips.map((clip) => {
+                      const clipStartRatio = (clip.startTime / (duration || 180)) * 100;
+                      const clipWidthRatio = (clip.duration / (duration || 180)) * 100;
+                      const isSelected = selectedClipId === clip.id;
+
+                      return (
+                        <div
+                          key={clip.id}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedClipId(clip.id);
+                          }}
+                          style={{
+                            left: `${clipStartRatio}%`,
+                            width: `${clipWidthRatio}%`,
+                          }}
+                          className={`absolute top-1 bottom-1 rounded border shadow-md flex flex-col justify-between p-1 z-10 transition-all ${
+                            isSelected
+                              ? 'border-cyan-400 bg-cyan-950/70 shadow-[0_0_12px_rgba(6,182,212,0.4)]'
+                              : 'border-zinc-700/80 bg-[#15161c]/80 hover:border-zinc-500'
+                          }`}
+                        >
+                          {/* Clip Header Bar */}
+                          <div className="flex items-center justify-between text-[8px] font-mono font-bold text-zinc-300">
+                            <span className="truncate max-w-[90px]">{clip.name || clip.songTitle}</span>
+                            <div className="flex items-center space-x-1">
+                              {onDuplicateClip && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onDuplicateClip(clip.id);
+                                  }}
+                                  className="p-0.5 hover:text-cyan-300"
+                                  title="Duplicate Clip"
+                                >
+                                  <Copy className="w-2.5 h-2.5" />
+                                </button>
+                              )}
+                              {onDeleteClip && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onDeleteClip(clip.id);
+                                  }}
+                                  className="p-0.5 hover:text-red-400"
+                                  title="Delete Clip Slice"
+                                >
+                                  <Trash2 className="w-2.5 h-2.5" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Clip Time Duration Badge */}
+                          <div className="text-[7px] text-zinc-500 font-mono flex justify-between items-center">
+                            <span>{formatRulerTime(clip.startTime)}</span>
+                            <span>{clip.duration.toFixed(1)}s</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {/* Played Region Shading Overlay (Tracks Stem Progress Independently) */}
+                    <div
+                      className="absolute top-0 bottom-0 left-0 bg-white/5 pointer-events-none border-r transition-all duration-75"
+                      style={{
+                        width: `${stemProgress}%`,
+                        borderColor: config.color,
+                      }}
+                    />
+
+                    {/* Grid Lines Overlay */}
+                    <div className="absolute inset-0 flex justify-between pointer-events-none px-2 opacity-20">
+                      {rulerTicks.map((_, i) => (
+                        <div key={i} className="w-px h-full bg-zinc-700" />
+                      ))}
+                    </div>
+
+                    {/* Independent Moving Playhead Laser Bar (Separate on each stem!) */}
+                    <div
+                      className="absolute top-0 bottom-0 w-1 pointer-events-none z-20 transition-all duration-75"
+                      style={{
+                        left: `calc(${stemProgress}% - 1px)`,
+                        backgroundColor: config.color,
+                        boxShadow: `0 0 10px ${config.color}`,
+                      }}
+                    >
+                      <div
+                        className="w-2.5 h-4 -translate-x-[3px] -translate-y-0.5 rounded shadow-md flex items-center justify-center text-[8px] font-bold text-black"
+                        style={{ backgroundColor: config.color }}
+                      >
+                        ▼
+                      </div>
+                    </div>
+
+                    {/* Default Track Info Tag */}
+                    <div className="absolute top-1.5 left-2 pointer-events-none flex items-center space-x-1.5 text-[8px] font-mono font-bold text-zinc-400 bg-black/75 px-1.5 py-0.5 rounded border border-zinc-800 z-10">
+                      <span style={{ color: config.color }}>●</span>
+                      <span className="text-zinc-200">{trackMetadata?.title || 'DEMUCS_STEM'}</span>
+                      <span className="text-zinc-500">[{config.shortName}.WAV]</span>
+                      <span className="font-mono text-cyan-300 ml-1 font-bold">[{formatRulerTime(stemCurrentTime)}]</span>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
     </div>
   );

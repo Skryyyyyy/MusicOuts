@@ -326,7 +326,7 @@ describe('UI Studio Deck Components', () => {
         })
       );
 
-      expect(html).toContain('Stem Tracks');
+      expect(html).toContain('Arrangement Timeline');
       expect(html).toContain('01 VOCALS [LEAD]');
       expect(html).toContain('02 DRUMS [PERC]');
       expect(html).toContain('03 BASS [LOW-END]');
