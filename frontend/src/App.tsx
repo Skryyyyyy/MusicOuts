@@ -875,11 +875,11 @@ export const App: React.FC = () => {
       />
 
       {/* 3. Main Studio Workspace Area */}
-      <main className="relative pl-channel-w-standard pt-[92px] w-full min-h-screen bg-surface flex flex-col overflow-hidden">
-        {/* Top 60% Workspace Section */}
-        <div className="h-[calc(60vh-2px)] flex flex-col overflow-hidden">
+      <main className="relative pl-channel-w-standard pt-[92px] w-full h-screen bg-surface flex flex-col overflow-hidden">
+        {/* Dynamic Workspace View Container */}
+        <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
           {showSynth && (
-            <div className="p-2 bg-surface-container-low border-b border-surface-container-highest">
+            <div className="p-2 bg-surface-container-low border-b border-surface-container-highest shrink-0">
               <VirtualSynth audioGraph={audioGraphRef.current} />
             </div>
           )}
@@ -1234,44 +1234,48 @@ export const App: React.FC = () => {
           </div>
         </div>
 
-        {/* Bottom Dock: MixConsole */}
-        <section
-          className={`flex flex-col bg-surface-container-low border-t border-surface-container-highest shadow-[0_-4px_16px_rgba(0,0,0,0.6)] select-none transition-all duration-200 ${
-            isFooterCollapsed ? "h-7 overflow-hidden" : "h-[calc(40vh-2px)]"
-          }`}
-        >
-          <div className="h-6 bg-surface-container px-pad-xs flex items-center justify-between border-b border-surface-container-highest font-label-sm text-[10px] text-on-surface-variant shrink-0">
-            <span className="font-semibold text-on-surface flex items-center gap-1">
-              <span className="material-symbols-outlined text-[13px] text-primary">equalizer</span>
-              MixConsole Dock
-            </span>
-            <button
-              onClick={() => setIsFooterCollapsed(!isFooterCollapsed)}
-              className="px-1.5 py-0.5 rounded hover:bg-surface-container-high text-on-surface-variant hover:text-on-surface text-[10px]"
-              title={isFooterCollapsed ? "Expand MixConsole" : "Collapse MixConsole"}
-            >
-              {isFooterCollapsed ? "▲ Expand" : "▼ Collapse"}
-            </button>
-          </div>
-          <MixConsoleView
-            audioGraph={audioGraphRef.current}
-            stemStates={stems}
-            masterVolume={masterVolume}
-            djFilterCutoff={djFilterCutoff}
-            djFilterType={djFilterType}
-            djFilterQ={djFilterQ}
-            isDucking={isDucking}
-            duckingReduction={duckingReduction}
-            onStemVolumeChange={handleStemVolumeChange}
-            onStemMuteToggle={handleStemMuteToggle}
-            onStemSoloToggle={handleStemSoloToggle}
-            onStemPanChange={handleStemPanChange}
-            onMasterVolumeChange={handleMasterVolumeChange}
-            onDjFilterChange={handleDjFilterChange}
-            onDuckingToggle={handleDuckingToggle}
-            className="flex-1 h-full"
-          />
-        </section>
+        {/* Bottom Dock: MixConsole (Only active on Arrangement view) */}
+        {currentView === "arrangement" && (
+          <section
+            className={`flex flex-col bg-surface-container-low border-t border-surface-container-highest shadow-[0_-4px_16px_rgba(0,0,0,0.6)] select-none transition-all duration-200 shrink-0 ${
+              isFooterCollapsed ? "h-7 overflow-hidden" : "h-[38vh]"
+            }`}
+          >
+            <div className="h-6 bg-surface-container px-pad-xs flex items-center justify-between border-b border-surface-container-highest font-label-sm text-[10px] text-on-surface-variant shrink-0">
+              <span className="font-semibold text-on-surface flex items-center gap-1">
+                <span className="material-symbols-outlined text-[13px] text-primary">equalizer</span>
+                MixConsole Dock
+              </span>
+              <button
+                onClick={() => setIsFooterCollapsed(!isFooterCollapsed)}
+                className="px-1.5 py-0.5 rounded hover:bg-surface-container-high text-on-surface-variant hover:text-on-surface text-[10px]"
+                title={isFooterCollapsed ? "Expand MixConsole" : "Collapse MixConsole"}
+              >
+                {isFooterCollapsed ? "▲ Expand" : "▼ Collapse"}
+              </button>
+            </div>
+            <div className="flex-1 min-h-0 overflow-hidden">
+              <MixConsoleView
+                audioGraph={audioGraphRef.current}
+                stemStates={stems}
+                masterVolume={masterVolume}
+                djFilterCutoff={djFilterCutoff}
+                djFilterType={djFilterType}
+                djFilterQ={djFilterQ}
+                isDucking={isDucking}
+                duckingReduction={duckingReduction}
+                onStemVolumeChange={handleStemVolumeChange}
+                onStemMuteToggle={handleStemMuteToggle}
+                onStemSoloToggle={handleStemSoloToggle}
+                onStemPanChange={handleStemPanChange}
+                onMasterVolumeChange={handleMasterVolumeChange}
+                onDjFilterChange={handleDjFilterChange}
+                onDuckingToggle={handleDuckingToggle}
+                className="h-full"
+              />
+            </div>
+          </section>
+        )}
       </main>
 
       {/* 4. Studio Guide & Performance Take Modals */}
