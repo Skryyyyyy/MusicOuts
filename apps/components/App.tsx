@@ -829,7 +829,21 @@ export const App: React.FC = () => {
   // Keyboard Shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.code === 'Space' && (e.target as HTMLElement).tagName !== 'INPUT') {
+      const activeElement = document.activeElement as HTMLElement | null;
+      const targetElement = e.target as HTMLElement | null;
+      const isInputFocused =
+        activeElement?.tagName === 'INPUT' ||
+        activeElement?.tagName === 'TEXTAREA' ||
+        targetElement?.tagName === 'INPUT' ||
+        targetElement?.tagName === 'TEXTAREA' ||
+        activeElement?.isContentEditable ||
+        targetElement?.isContentEditable;
+
+      if (isInputFocused) {
+        return; // Allow full native browser typing, pasting (Ctrl+V), copying (Ctrl+C), selecting, undoing
+      }
+
+      if (e.code === 'Space') {
         e.preventDefault();
         if (engine.isPlaying()) {
           engine.pause();
