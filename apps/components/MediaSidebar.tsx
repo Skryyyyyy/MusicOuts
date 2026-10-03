@@ -123,21 +123,21 @@ export const MediaSidebar: React.FC<MediaSidebarProps> = ({
   };
 
   return (
-    <aside className="w-64 lg:w-72 bg-[#12141C] border-r border-white/[0.08] flex flex-col h-full select-none shrink-0 overflow-hidden relative">
+    <aside className="w-64 lg:w-72 bg-[#0C0E16]/80 backdrop-blur-2xl border-r border-white/[0.08] flex flex-col h-full select-none shrink-0 overflow-hidden relative z-20">
       {/* Top Tabs (Media, Effects, Instruments, Samples) */}
-      <div className="flex items-center justify-between border-b border-white/[0.08] px-2 pt-2 shrink-0 bg-[#0F1017]">
-        <div className="flex items-center space-x-1">
+      <div className="flex items-center justify-between border-b border-white/[0.08] px-3 pt-2.5 shrink-0 bg-[#0E1019]/60 backdrop-blur-md">
+        <div className="flex items-center space-x-2">
           {(['Media', 'Effects', 'Instruments', 'Samples'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`pb-2 px-1 text-xs font-medium relative transition-colors ${
-                activeTab === tab ? 'text-white font-semibold' : 'text-slate-400 hover:text-slate-200'
+              className={`pb-2.5 px-1.5 text-xs font-semibold relative transition-all ${
+                activeTab === tab ? 'text-white' : 'text-slate-400 hover:text-slate-200'
               }`}
             >
               {tab}
               {activeTab === tab && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#00B0FF]" />
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#00E5FF] shadow-[0_0_8px_#00E5FF] rounded-full" />
               )}
             </button>
           ))}
@@ -147,7 +147,7 @@ export const MediaSidebar: React.FC<MediaSidebarProps> = ({
         {onToggleCollapse && (
           <button
             onClick={onToggleCollapse}
-            className="pb-2 text-slate-500 hover:text-slate-200 px-1 py-0.5 text-xs font-mono font-bold transition-colors"
+            className="pb-2 text-slate-500 hover:text-slate-200 px-1.5 py-0.5 text-xs font-mono font-bold transition-colors"
             title="Minimize Media Browser (><)"
           >
             <span>{'><'}</span>
@@ -157,20 +157,20 @@ export const MediaSidebar: React.FC<MediaSidebarProps> = ({
 
       {/* Search Bar */}
       <div className="p-2.5 pb-2 shrink-0">
-        <div className="flex items-center bg-[#181A24] border border-white/[0.06] rounded-md px-2.5 py-1 text-xs text-slate-300">
+        <div className="flex items-center apple-glass-capsule px-3 py-1.5 text-xs text-slate-200 focus-within:border-[#00E5FF]/60 focus-within:shadow-[0_0_12px_rgba(0,229,255,0.2)] transition-all">
           <Search className="w-3.5 h-3.5 text-slate-400 mr-2 shrink-0" />
           <input
             type="text"
-            placeholder="Search all 9 categories..."
+            placeholder="Search audio library..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="bg-transparent text-xs text-white placeholder-slate-400 outline-none w-full"
+            className="bg-transparent text-xs text-white placeholder-slate-500 outline-none w-full"
           />
         </div>
       </div>
 
       {/* Category List */}
-      <div className="px-2 pb-2 shrink-0 flex flex-wrap gap-1 border-b border-white/[0.06]">
+      <div className="px-2.5 pb-2.5 shrink-0 flex flex-wrap gap-1 border-b border-white/[0.06]">
         {categories.map((cat) => {
           const Icon = cat.icon;
           const isSelected = activeCategory === cat.id;
@@ -178,10 +178,10 @@ export const MediaSidebar: React.FC<MediaSidebarProps> = ({
             <button
               key={cat.id}
               onClick={() => setActiveCategory(cat.id)}
-              className={`px-2 py-1 rounded text-[10px] font-medium flex items-center gap-1 transition-colors ${
+              className={`px-2.5 py-1 rounded-full text-[10px] font-medium flex items-center gap-1 transition-all ${
                 isSelected
-                  ? 'bg-white/15 text-white font-bold'
-                  : 'bg-white/5 text-slate-400 hover:text-slate-200 hover:bg-white/10'
+                  ? 'bg-white/20 text-white font-bold border border-white/25 shadow-sm'
+                  : 'bg-white/5 text-slate-400 hover:text-slate-200 hover:bg-white/10 border border-transparent'
               }`}
             >
               <Icon className="w-2.5 h-2.5" />
@@ -192,7 +192,7 @@ export const MediaSidebar: React.FC<MediaSidebarProps> = ({
       </div>
 
       {/* Sample Items List with Drag Support & Audio Previews */}
-      <div className="flex-1 overflow-y-auto p-2 space-y-1 bg-[#0D0E14]">
+      <div className="flex-1 overflow-y-auto p-2.5 space-y-1.5 bg-black/20">
         {filteredSamples.map((item) => {
           const isPreviewing = previewingSampleId === item.id;
           const sourceAsset: SourceAsset = sources[item.id] || {
@@ -210,16 +210,16 @@ export const MediaSidebar: React.FC<MediaSidebarProps> = ({
               key={item.id}
               draggable
               onDragStart={(e) => onDragStartSample(e, sourceAsset)}
-              className="bg-[#151722] hover:bg-[#1C1F2E] border border-white/5 hover:border-white/20 rounded-lg p-2 flex flex-col gap-1 cursor-grab active:cursor-grabbing transition-all group shadow-sm"
+              className="apple-glass-card rounded-xl p-2.5 flex flex-col gap-1.5 cursor-grab active:cursor-grabbing transition-all group hover:scale-[1.01]"
             >
               <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2 overflow-hidden">
+                <div className="flex items-center space-x-2.5 overflow-hidden">
                   <button
                     onClick={() => handleTogglePreview(item.id)}
-                    className={`w-6 h-6 rounded-md flex items-center justify-center transition-colors ${
+                    className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${
                       isPreviewing
-                        ? 'bg-[#00E5FF] text-black shadow-md'
-                        : 'bg-white/10 text-slate-300 hover:text-white group-hover:bg-white/20'
+                        ? 'bg-[#00E5FF] text-black shadow-[0_0_12px_rgba(0,229,255,0.6)] font-bold'
+                        : 'bg-white/10 text-slate-300 hover:text-white group-hover:bg-white/20 border border-white/10'
                     }`}
                   >
                     {isPreviewing ? (
@@ -230,7 +230,7 @@ export const MediaSidebar: React.FC<MediaSidebarProps> = ({
                   </button>
 
                   <div className="overflow-hidden">
-                    <span className="text-xs font-semibold text-slate-200 truncate block">
+                    <span className="text-xs font-semibold text-slate-100 truncate block group-hover:text-white">
                       {item.name}
                     </span>
                     <div className="flex items-center space-x-2 text-[9px] font-mono text-slate-400">
@@ -238,7 +238,7 @@ export const MediaSidebar: React.FC<MediaSidebarProps> = ({
                       <span>•</span>
                       <span>{item.bpm} BPM</span>
                       <span>•</span>
-                      <span className="text-[#00E5FF]">{item.key}</span>
+                      <span className="text-[#00E5FF] font-medium">{item.key}</span>
                     </div>
                   </div>
                 </div>
@@ -251,7 +251,7 @@ export const MediaSidebar: React.FC<MediaSidebarProps> = ({
                         e.stopPropagation();
                         onAddSampleToTimeline(sourceAsset);
                       }}
-                      className="px-1.5 py-0.5 rounded bg-blue-500/20 hover:bg-blue-500/40 text-blue-400 hover:text-white border border-blue-500/30 text-[10px] flex items-center gap-0.5 font-bold transition-colors opacity-0 group-hover:opacity-100"
+                      className="px-2 py-0.5 rounded-full bg-[#00E5FF]/20 hover:bg-[#00E5FF]/30 text-[#00E5FF] hover:text-white border border-[#00E5FF]/40 text-[10px] flex items-center gap-0.5 font-bold transition-all opacity-0 group-hover:opacity-100 shadow-[0_0_8px_rgba(0,229,255,0.3)]"
                       title="Add to active track at playhead"
                     >
                       <Plus className="w-2.5 h-2.5" />
@@ -259,14 +259,14 @@ export const MediaSidebar: React.FC<MediaSidebarProps> = ({
                     </button>
                   )}
                   <div
-                    className="w-2 h-2 rounded-full shrink-0"
+                    className="w-2 h-2 rounded-full shrink-0 shadow-sm"
                     style={{ backgroundColor: item.color }}
                   />
                 </div>
               </div>
 
               {/* Glowing Mini Waveform Strip */}
-              <div className="h-4 bg-[#0A0B10] rounded px-1 flex items-center justify-between overflow-hidden relative">
+              <div className="h-4 bg-black/40 rounded-lg px-1.5 flex items-center justify-between overflow-hidden relative border border-white/[0.04]">
                 {Array.from({ length: 28 }).map((_, i) => {
                   const h = Math.sin(i * 0.4) * 50 + 40;
                   return (
@@ -275,7 +275,7 @@ export const MediaSidebar: React.FC<MediaSidebarProps> = ({
                       className="w-1 rounded-full transition-all"
                       style={{
                         height: `${h}%`,
-                        backgroundColor: isPreviewing ? '#00E5FF' : `${item.color}80`,
+                        backgroundColor: isPreviewing ? '#00E5FF' : `${item.color}90`,
                       }}
                     />
                   );
@@ -287,10 +287,10 @@ export const MediaSidebar: React.FC<MediaSidebarProps> = ({
       </div>
 
       {/* Footer / Import Audio Button */}
-      <div className="p-2 border-t border-white/[0.08] bg-[#0E0F17] shrink-0">
+      <div className="p-2.5 border-t border-white/[0.08] bg-[#0E1019]/70 backdrop-blur-md shrink-0">
         <button
           onClick={handleImportFile}
-          className="w-full py-1.5 bg-white/10 hover:bg-white/15 border border-white/10 rounded-lg text-xs font-semibold text-slate-200 flex items-center justify-center gap-1.5 transition-colors"
+          className="w-full py-2 apple-glass-btn rounded-xl text-xs font-semibold text-slate-200 flex items-center justify-center gap-1.5 transition-all hover:text-white"
         >
           <Plus className="w-3.5 h-3.5 text-[#00E5FF]" />
           <span>Import Local Audio / Loop</span>

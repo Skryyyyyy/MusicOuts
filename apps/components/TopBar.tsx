@@ -323,12 +323,12 @@ export const TopBar: React.FC<TopBarProps> = ({
   };
 
   return (
-    <header className="h-12 bg-[#0E0F14] border-b border-white/[0.08] flex items-center justify-between px-3 select-none z-50 shrink-0 text-slate-200 relative">
+    <header className="h-12 apple-glass-toolbar flex items-center justify-between px-3 select-none z-50 shrink-0 text-slate-200 relative shadow-md">
       {/* Left Menu & Premiere-Style Dropdowns */}
       <div ref={menuRef} className="flex items-center space-x-1 shrink-0 relative">
         <button
           onClick={() => setActiveMenu(activeMenu === 'AppMenu' ? null : 'AppMenu')}
-          className="p-1.5 hover:bg-white/10 rounded text-slate-300 hover:text-white transition-colors"
+          className="p-1.5 apple-glass-btn rounded-xl text-slate-300 hover:text-white transition-all"
         >
           <Menu className="w-4 h-4" />
         </button>
@@ -338,18 +338,18 @@ export const TopBar: React.FC<TopBarProps> = ({
           <div key={item} className="relative">
             <button
               onClick={() => setActiveMenu(activeMenu === item ? null : item)}
-              className={`px-2 py-1 text-xs rounded transition-colors ${
+              className={`px-2.5 py-1 text-xs rounded-xl font-medium transition-all ${
                 activeMenu === item
-                  ? 'bg-white/15 text-white font-semibold'
-                  : 'text-slate-300 hover:text-white hover:bg-white/5'
+                  ? 'bg-white/20 text-white shadow-sm font-semibold'
+                  : 'text-slate-300 hover:text-white hover:bg-white/10'
               }`}
             >
               {item}
             </button>
 
-            {/* Submenu Popover */}
+            {/* Submenu Popover with Apple Glass */}
             {activeMenu === item && (
-              <div className="absolute left-0 top-8 w-64 bg-[#151722] border border-white/10 rounded-lg shadow-2xl py-1.5 z-50 animate-in fade-in slide-in-from-top-1 duration-100">
+              <div className="absolute left-0 top-9 w-64 apple-glass rounded-2xl shadow-2xl py-2 z-50 animate-fade-in-scale">
                 {menuItems[item]?.map((entry, idx) => (
                   <React.Fragment key={idx}>
                     <button
@@ -357,7 +357,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                         setActiveMenu(null);
                         entry.action();
                       }}
-                      className="w-full px-3 py-1.5 text-xs text-left text-slate-200 hover:bg-[#00E5FF]/15 hover:text-white flex items-center justify-between transition-colors"
+                      className="w-full px-3.5 py-1.5 text-xs text-left text-slate-200 hover:bg-blue-500/20 hover:text-blue-300 flex items-center justify-between transition-colors"
                     >
                       <span>{entry.label}</span>
                       {entry.shortcut && (
@@ -393,7 +393,7 @@ export const TopBar: React.FC<TopBarProps> = ({
               }
             }}
             autoFocus
-            className="bg-[#171923] border border-[#00E5FF] px-2 py-0.5 rounded text-xs text-white font-medium ml-2 outline-none"
+            className="bg-[#171923] border border-blue-400 px-2 py-0.5 rounded-lg text-xs text-white font-medium ml-2 outline-none"
           />
         ) : (
           <div className="flex items-center ml-2 space-x-1">
@@ -402,13 +402,13 @@ export const TopBar: React.FC<TopBarProps> = ({
                 if (onOpenProjectHub) onOpenProjectHub();
                 else setIsEditingTitle(true);
               }}
-              className="flex items-center space-x-1.5 bg-[#171923] hover:bg-[#1E212E] border border-white/[0.08] hover:border-blue-500/30 px-2.5 py-1 rounded-md cursor-pointer transition-colors group"
+              className="flex items-center space-x-1.5 apple-glass-capsule px-3 py-1 rounded-xl cursor-pointer transition-all group"
               title={folderPath ? `Project Folder: ${folderPath} (Click to open Project Hub)` : 'Click to open Project Hub'}
             >
               <Folder className="w-3.5 h-3.5 text-blue-400 group-hover:text-blue-300" />
               <span className="text-xs font-semibold text-slate-200 group-hover:text-white max-w-[140px] truncate">{projectTitle}</span>
               {folderPath && (
-                <span className="text-[10px] text-slate-500 font-mono hidden md:inline max-w-[100px] truncate">
+                <span className="text-[10px] text-slate-400 font-mono hidden md:inline max-w-[100px] truncate">
                   ({folderPath.split('/').pop() || folderPath.split('\\').pop()})
                 </span>
               )}
@@ -419,7 +419,7 @@ export const TopBar: React.FC<TopBarProps> = ({
       </div>
 
       {/* Center Transport Pill & Timecode Display */}
-      <div className="flex items-center space-x-3">
+      <div className="flex items-center space-x-2.5 apple-glass-capsule px-3 py-1 rounded-2xl shadow-md">
         {/* Transport Buttons */}
         <div className="flex items-center space-x-1">
           <button
@@ -556,14 +556,14 @@ export const TopBar: React.FC<TopBarProps> = ({
       {/* Right Studio Quick Action Buttons, Panel Minimizers & Master Fader */}
       <div className="flex items-center space-x-2 shrink-0">
         {/* Panel Minimize / Maximize Quick Toggles & Master Focus Timeline Button */}
-        <div className="flex items-center bg-[#171923] border border-white/10 rounded-lg p-0.5 space-x-0.5">
+        <div className="flex items-center apple-glass-capsule rounded-xl p-0.5 space-x-0.5 shadow-sm">
           {/* Master >< / <> Workspace Mode Button */}
           {onToggleFocusTimelineMode && (
             <button
               onClick={onToggleFocusTimelineMode}
-              className={`px-1.5 py-1 rounded font-mono text-xs font-bold transition-all flex items-center gap-1 ${
+              className={`px-2 py-1 rounded-lg font-mono text-xs font-bold transition-all flex items-center gap-1 ${
                 isTimelineFocused
-                  ? 'bg-[#00E5FF]/20 text-[#00E5FF] border border-[#00E5FF]/50 shadow-[0_0_8px_rgba(0,229,255,0.3)]'
+                  ? 'bg-blue-500/25 text-blue-300 border border-blue-400/40 shadow-[0_0_10px_rgba(59,130,246,0.35)]'
                   : 'text-slate-400 hover:text-white hover:bg-white/10'
               }`}
               title={isTimelineFocused ? 'Restore All Panels (<> Pro Studio Mode)' : 'Minimize All Panels (>< Focus Timeline Mode)'}
@@ -576,8 +576,8 @@ export const TopBar: React.FC<TopBarProps> = ({
 
           <button
             onClick={onToggleLeftSidebar}
-            className={`p-1 rounded transition-colors ${
-              isLeftSidebarOpen ? 'bg-white/15 text-[#00E5FF]' : 'text-slate-500 hover:text-slate-300'
+            className={`p-1 rounded-lg transition-all ${
+              isLeftSidebarOpen ? 'bg-white/20 text-blue-300' : 'text-slate-500 hover:text-slate-300'
             }`}
             title="Toggle Left Media Browser (Ctrl+[)"
           >
@@ -585,8 +585,8 @@ export const TopBar: React.FC<TopBarProps> = ({
           </button>
           <button
             onClick={onToggleBottomStudio}
-            className={`p-1 rounded transition-colors ${
-              isBottomStudioOpen ? 'bg-white/15 text-[#00E5FF]' : 'text-slate-500 hover:text-slate-300'
+            className={`p-1 rounded-lg transition-all ${
+              isBottomStudioOpen ? 'bg-white/20 text-blue-300' : 'text-slate-500 hover:text-slate-300'
             }`}
             title="Toggle Bottom Automation Studio (Ctrl+J)"
           >
@@ -594,8 +594,8 @@ export const TopBar: React.FC<TopBarProps> = ({
           </button>
           <button
             onClick={onToggleRightInspector}
-            className={`p-1 rounded transition-colors ${
-              isRightInspectorOpen ? 'bg-white/15 text-[#00E5FF]' : 'text-slate-500 hover:text-slate-300'
+            className={`p-1 rounded-lg transition-all ${
+              isRightInspectorOpen ? 'bg-white/20 text-blue-300' : 'text-slate-500 hover:text-slate-300'
             }`}
             title="Toggle Right Inspector Panel (Ctrl+])"
           >
@@ -606,7 +606,7 @@ export const TopBar: React.FC<TopBarProps> = ({
         {onOpenURLImport && (
           <button
             onClick={onOpenURLImport}
-            className="px-2.5 py-1 bg-[#00E5FF]/10 hover:bg-[#00E5FF]/20 border border-[#00E5FF]/30 rounded text-xs font-semibold text-[#00E5FF] flex items-center gap-1.5 transition-colors"
+            className="px-3 py-1.5 apple-glass-btn rounded-xl text-xs font-semibold text-blue-400 flex items-center gap-1.5 transition-all shadow-sm"
             title="Download Audio from Spotify / YouTube / Apple Music (Ctrl+U)"
           >
             <Download className="w-3.5 h-3.5" />
@@ -616,16 +616,16 @@ export const TopBar: React.FC<TopBarProps> = ({
 
         <button
           onClick={onOpenMixer}
-          className="px-2.5 py-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded text-xs font-semibold text-slate-200 flex items-center gap-1.5 transition-colors"
+          className="px-3 py-1.5 apple-glass-btn rounded-xl text-xs font-semibold text-slate-200 flex items-center gap-1.5 transition-all shadow-sm"
           title="Open Audio Mixer (F3)"
         >
-          <Sliders className="w-3.5 h-3.5 text-[#00E5FF]" />
+          <Sliders className="w-3.5 h-3.5 text-blue-400" />
           <span>Mixer</span>
         </button>
 
         <button
           onClick={onOpenAIMastering}
-          className="px-2.5 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded text-xs font-semibold text-emerald-300 flex items-center gap-1.5 transition-colors"
+          className="px-3 py-1.5 apple-glass-btn rounded-xl text-xs font-semibold text-emerald-300 flex items-center gap-1.5 transition-all shadow-sm"
           title="Open AI Mastering Studio"
         >
           <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
@@ -635,7 +635,7 @@ export const TopBar: React.FC<TopBarProps> = ({
         {onOpenAIAssistant && (
           <button
             onClick={onOpenAIAssistant}
-            className="px-2.5 py-1 bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/40 rounded text-xs font-bold text-purple-300 flex items-center gap-1.5 shadow-[0_0_8px_rgba(168,85,247,0.3)] transition-colors"
+            className="px-3 py-1.5 rounded-xl bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/40 text-xs font-bold text-purple-300 flex items-center gap-1.5 shadow-[0_0_12px_rgba(168,85,247,0.25)] transition-all"
             title="Open AI DAW Co-Producer (Natural Language & 26 ML Features)"
           >
             <Sparkles className="w-3.5 h-3.5 text-purple-400" />
@@ -645,7 +645,7 @@ export const TopBar: React.FC<TopBarProps> = ({
 
         <button
           onClick={onOpenExport}
-          className="px-2.5 py-1 bg-[#00E5FF]/10 hover:bg-[#00E5FF]/20 border border-[#00E5FF]/30 rounded text-xs font-bold text-[#00E5FF] flex items-center gap-1.5 transition-colors"
+          className="px-3 py-1.5 apple-glass-btn-primary rounded-xl text-xs font-bold text-white flex items-center gap-1.5 transition-all shadow-md"
           title="Export Project (Ctrl+M)"
         >
           <Download className="w-3.5 h-3.5" />
@@ -653,9 +653,9 @@ export const TopBar: React.FC<TopBarProps> = ({
         </button>
 
         {/* Stereo Gradient LED Bar */}
-        <div className="w-24 h-3 bg-[#08090D] rounded overflow-hidden p-0.5 border border-white/[0.08] flex items-center ml-1">
+        <div className="w-24 h-3.5 bg-black/50 rounded-full overflow-hidden p-0.5 border border-white/10 flex items-center ml-1 shadow-inner">
           <div
-            className="h-full bg-gradient-to-r from-[#00E676] via-[#FFD600] via-[#FF9100] to-[#FF1744] rounded-sm transition-all duration-75"
+            className="h-full bg-gradient-to-r from-emerald-400 via-amber-400 via-orange-400 to-rose-500 rounded-full transition-all duration-75"
             style={{ width: `${Math.min(100, Math.max(5, (isPlaying ? meterLevels.left * 100 : 8) * masterVolume))}%` }}
           />
         </div>

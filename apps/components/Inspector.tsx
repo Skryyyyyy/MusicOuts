@@ -259,14 +259,14 @@ export const Inspector: React.FC<InspectorProps> = ({
     const evaluatedVal = isArmed ? evaluateKeyframe(lane, currentTime) : opts.value;
 
     return (
-      <div className="bg-[#171923] border border-white/[0.06] rounded-lg p-2.5 space-y-2 transition-all">
+      <div className="apple-glass-card rounded-2xl p-3 space-y-2.5 transition-all">
         {/* Top Control Bar: Twirl, Label, Stopwatch, ◄ ◇ ►, Reset, Value */}
         <div className="flex items-center justify-between text-xs">
           {/* Twirl Arrow + Property Label */}
           <div className="flex items-center space-x-1.5 overflow-hidden">
             <button
               onClick={() => toggleTwirlLane(opts.paramKey)}
-              className="p-0.5 hover:bg-white/10 rounded text-slate-400 hover:text-white transition-colors"
+              className="p-1 hover:bg-white/10 rounded-lg text-slate-400 hover:text-white transition-colors"
               title="Toggle Keyframe Curve Graph"
             >
               {isTwirled ? (
@@ -275,18 +275,18 @@ export const Inspector: React.FC<InspectorProps> = ({
                 <ChevronRight className="w-3.5 h-3.5" />
               )}
             </button>
-            <span className="font-medium text-slate-200 truncate">{opts.label}</span>
+            <span className="font-semibold text-slate-100 truncate">{opts.label}</span>
           </div>
 
           {/* Premiere Pro Keyframe Navigation Strip */}
-          <div className="flex items-center space-x-1 shrink-0">
+          <div className="flex items-center space-x-1 shrink-0 apple-glass-capsule px-1.5 py-0.5">
             {/* Stopwatch Toggle Icon (⏱) */}
             <button
               onClick={() => toggleStopwatch(opts.target, lane, opts.value)}
-              className={`p-1 rounded transition-all flex items-center justify-center ${
+              className={`p-1 rounded-md transition-all flex items-center justify-center ${
                 isArmed
-                  ? 'bg-[#00E5FF]/20 text-[#00E5FF] border border-[#00E5FF]/60 shadow-[0_0_6px_rgba(0,229,255,0.4)]'
-                  : 'text-slate-500 hover:text-slate-300 hover:bg-white/5'
+                  ? 'bg-[#00E5FF]/25 text-[#00E5FF] border border-[#00E5FF]/60 shadow-[0_0_8px_rgba(0,229,255,0.4)]'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-white/10'
               }`}
               title={isArmed ? 'Keyframing Active (Click to Disarm)' : 'Toggle Animation (Stopwatch)'}
             >
@@ -298,7 +298,7 @@ export const Inspector: React.FC<InspectorProps> = ({
               onClick={() => jumpPrevKeyframe(lane)}
               disabled={!hasPrev}
               className={`px-1 py-0.5 rounded text-[10px] font-mono transition-colors ${
-                hasPrev ? 'text-slate-300 hover:text-[#00E5FF] hover:bg-white/10' : 'text-slate-600 opacity-40 cursor-not-allowed'
+                hasPrev ? 'text-slate-200 hover:text-[#00E5FF] hover:bg-white/10' : 'text-slate-600 opacity-40 cursor-not-allowed'
               }`}
               title="Previous Keyframe (◄)"
             >
@@ -310,10 +310,10 @@ export const Inspector: React.FC<InspectorProps> = ({
               onClick={() => toggleKeyframeAtPlayhead(opts.target, lane, opts.value)}
               className={`px-1 py-0.5 rounded text-xs transition-all ${
                 kfAtPlayhead
-                  ? 'text-[#00E5FF] font-bold shadow-[0_0_6px_rgba(0,229,255,0.5)]'
+                  ? 'text-[#00E5FF] font-bold shadow-[0_0_8px_rgba(0,229,255,0.6)]'
                   : isArmed
-                  ? 'text-slate-400 hover:text-[#00E5FF]'
-                  : 'text-slate-600 hover:text-slate-300'
+                  ? 'text-slate-300 hover:text-[#00E5FF]'
+                  : 'text-slate-500 hover:text-slate-300'
               }`}
               title={kfAtPlayhead ? 'Remove Keyframe at Playhead (◆)' : 'Add Keyframe at Playhead (◇)'}
             >
@@ -325,7 +325,7 @@ export const Inspector: React.FC<InspectorProps> = ({
               onClick={() => jumpNextKeyframe(lane)}
               disabled={!hasNext}
               className={`px-1 py-0.5 rounded text-[10px] font-mono transition-colors ${
-                hasNext ? 'text-slate-300 hover:text-[#00E5FF] hover:bg-white/10' : 'text-slate-600 opacity-40 cursor-not-allowed'
+                hasNext ? 'text-slate-200 hover:text-[#00E5FF] hover:bg-white/10' : 'text-slate-600 opacity-40 cursor-not-allowed'
               }`}
               title="Next Keyframe (►)"
             >
@@ -340,21 +340,21 @@ export const Inspector: React.FC<InspectorProps> = ({
                   handleValueChangeWithKeyframe(opts.target, lane, opts.defaultValue, () => {});
                 }
               }}
-              className="p-1 hover:bg-white/10 rounded text-slate-400 hover:text-white transition-colors ml-0.5"
+              className="p-1 hover:bg-white/10 rounded-md text-slate-400 hover:text-white transition-colors ml-0.5"
               title="Reset to default value"
             >
               <RotateCcw className="w-2.5 h-2.5" />
             </button>
 
             {/* Value Display */}
-            <span className="font-mono text-slate-100 text-[11px] min-w-[50px] text-right ml-1">
+            <span className="font-mono text-white text-[11px] min-w-[50px] text-right ml-1 font-semibold">
               {opts.formatValue(evaluatedVal)}
             </span>
           </div>
         </div>
 
         {/* Live Slider Control */}
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-2 pt-1">
           <input
             type="range"
             min={opts.min}
@@ -365,18 +365,18 @@ export const Inspector: React.FC<InspectorProps> = ({
               const val = parseFloat(e.target.value);
               handleValueChangeWithKeyframe(opts.target, lane, val, () => opts.onDirectChange(val));
             }}
-            className="w-full h-1.5 bg-black/50 rounded cursor-pointer transition-all"
+            className="w-full h-1.5 bg-black/60 rounded-full cursor-pointer transition-all border border-white/[0.05]"
             style={{ accentColor: opts.color }}
           />
         </div>
 
         {/* Twirl-Down Mini Keyframe Curve Graph Timeline */}
         {isTwirled && (
-          <div className="mt-2 bg-[#0E0F14] border border-white/[0.08] rounded-md p-2 space-y-2 animate-in fade-in duration-150">
+          <div className="mt-2.5 bg-black/40 border border-white/[0.08] rounded-xl p-2.5 space-y-2 animate-in fade-in duration-150 backdrop-blur-sm">
             {/* Graph Header: Interpolation Presets & Keyframe Count */}
-            <div className="flex items-center justify-between text-[10px] text-slate-400 border-b border-white/[0.04] pb-1">
+            <div className="flex items-center justify-between text-[10px] text-slate-400 border-b border-white/[0.06] pb-1.5">
               <div className="flex items-center space-x-1">
-                <span>Curve:</span>
+                <span className="text-slate-400">Curve:</span>
                 {(['bezier', 'linear', 'ease', 'hold'] as const).map((curve) => (
                   <button
                     key={curve}
@@ -539,21 +539,21 @@ export const Inspector: React.FC<InspectorProps> = ({
   };
 
   return (
-    <aside className="w-64 lg:w-72 bg-[#12141C] border-l border-white/[0.08] flex flex-col h-full select-none shrink-0 overflow-y-auto relative">
+    <aside className="w-64 lg:w-72 bg-[#0C0E16]/80 backdrop-blur-2xl border-l border-white/[0.08] flex flex-col h-full select-none shrink-0 overflow-y-auto relative z-20">
       {/* Top Header & Tabs (Clip, Track, Effects, Master) */}
-      <div className="flex items-center justify-between border-b border-white/[0.08] px-3 pt-2 shrink-0 bg-[#0F1017]">
+      <div className="flex items-center justify-between border-b border-white/[0.08] px-3 pt-2.5 shrink-0 bg-[#0E1019]/60 backdrop-blur-md">
         <div className="flex items-center space-x-3">
           {(['Clip', 'Track', 'Effects', 'Master'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`pb-2 px-1 text-xs font-medium relative transition-colors ${
-                activeTab === tab ? 'text-white font-semibold' : 'text-slate-400 hover:text-slate-200'
+              className={`pb-2.5 px-1 text-xs font-semibold relative transition-all ${
+                activeTab === tab ? 'text-white' : 'text-slate-400 hover:text-slate-200'
               }`}
             >
               {tab}
               {activeTab === tab && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#00B0FF]" />
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#00E5FF] shadow-[0_0_8px_#00E5FF] rounded-full" />
               )}
             </button>
           ))}
@@ -574,30 +574,32 @@ export const Inspector: React.FC<InspectorProps> = ({
       {/* Main Inspector Content */}
       <div className="p-3 space-y-3.5">
         {/* Clip Title Header */}
-        <div className="flex items-center space-x-2 bg-[#171923] p-2 rounded-lg border border-white/[0.06]">
-          <FileAudio className="w-4 h-4 text-[#00B0FF] shrink-0" />
-          <span className="text-xs font-semibold text-slate-100 truncate">
+        <div className="flex items-center space-x-2.5 apple-glass-card p-2.5 rounded-xl border border-white/[0.08]">
+          <div className="w-6 h-6 rounded-lg bg-[#00E5FF]/15 border border-[#00E5FF]/30 flex items-center justify-center shrink-0">
+            <FileAudio className="w-3.5 h-3.5 text-[#00E5FF]" />
+          </div>
+          <span className="text-xs font-semibold text-white truncate">
             {activeClip?.name || 'Vocal Take 01.wav'}
           </span>
         </div>
 
         {/* Start / End / Duration Metadata Grid */}
-        <div className="bg-[#171923] p-2.5 rounded-lg border border-white/[0.06] space-y-1.5 text-xs font-mono">
+        <div className="apple-glass-card p-3 rounded-2xl border border-white/[0.08] space-y-2 text-xs font-mono">
           <div className="flex items-center justify-between text-slate-300">
             <span className="text-slate-400">Start</span>
-            <span className="text-[#00E5FF]">
+            <span className="text-[#00E5FF] font-semibold">
               {formatSecToTc(activeClip?.startTime || 0)}
             </span>
           </div>
           <div className="flex items-center justify-between text-slate-300">
             <span className="text-slate-400">End</span>
-            <span className="text-[#00E5FF]">
+            <span className="text-[#00E5FF] font-semibold">
               {formatSecToTc((activeClip?.startTime || 0) + ((activeClip?.sourceOut || 10) - (activeClip?.sourceIn || 0)))}
             </span>
           </div>
           <div className="flex items-center justify-between text-slate-300">
             <span className="text-slate-400">Duration</span>
-            <span className="text-[#00E5FF]">
+            <span className="text-[#00E5FF] font-semibold">
               {formatSecToTc((activeClip?.sourceOut || 10) - (activeClip?.sourceIn || 0))}
             </span>
           </div>
@@ -607,7 +609,7 @@ export const Inspector: React.FC<InspectorProps> = ({
         <div className="space-y-2">
           <div className="flex items-center justify-between px-1">
             <span className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
-              <Sliders className="w-3.5 h-3.5 text-[#00B0FF]" />
+              <Sliders className="w-3.5 h-3.5 text-[#00E5FF]" />
               <span>Clip Transform (Keyframable)</span>
             </span>
             <button
@@ -616,8 +618,8 @@ export const Inspector: React.FC<InspectorProps> = ({
                   onUpdateClip({ ...activeClip, isMuted: !activeClip.isMuted });
                 }
               }}
-              className={`p-1 rounded transition-colors ${
-                activeClip?.isMuted ? 'text-red-400 bg-red-500/10' : 'text-slate-400 hover:text-emerald-400'
+              className={`p-1 rounded-lg transition-colors ${
+                activeClip?.isMuted ? 'text-red-400 bg-red-500/20' : 'text-slate-400 hover:text-emerald-400 hover:bg-white/10'
               }`}
               title="Mute Clip"
             >
@@ -664,24 +666,24 @@ export const Inspector: React.FC<InspectorProps> = ({
         </div>
 
         {/* 2. Track Equalizer (3-Band Parametric EQ) */}
-        <div className="bg-[#171923] border border-white/[0.06] rounded-lg overflow-hidden">
+        <div className="apple-glass-card rounded-2xl overflow-hidden border border-white/[0.08]">
           <div
             onClick={() => toggleFxAccordion('Equalizer')}
-            className="px-3 py-2 flex items-center justify-between cursor-pointer hover:bg-white/[0.04] transition-colors"
+            className="px-3.5 py-2.5 flex items-center justify-between cursor-pointer hover:bg-white/[0.04] transition-colors"
           >
             <div className="flex items-center space-x-2">
               {expandedFx.includes('Equalizer') ? (
-                <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                <ChevronDown className="w-3.5 h-3.5 text-slate-300" />
               ) : (
                 <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
               )}
-              <span className="text-xs font-semibold text-slate-200">3-Band Parametric EQ</span>
+              <span className="text-xs font-semibold text-slate-100">3-Band Parametric EQ</span>
             </div>
-            <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_4px_#34D399]" />
+            <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_6px_#34D399]" />
           </div>
 
           {expandedFx.includes('Equalizer') && activeTrack && (
-            <div className="p-2.5 border-t border-white/[0.04] space-y-2">
+            <div className="p-3 border-t border-white/[0.06] space-y-2.5">
               {/* Low Shelf */}
               {renderPremiereControlRow({
                 target: 'track',
@@ -740,24 +742,24 @@ export const Inspector: React.FC<InspectorProps> = ({
         </div>
 
         {/* 3. Reverb Send */}
-        <div className="bg-[#171923] border border-white/[0.06] rounded-lg overflow-hidden">
+        <div className="apple-glass-card rounded-2xl overflow-hidden border border-white/[0.08]">
           <div
             onClick={() => toggleFxAccordion('Reverb')}
-            className="px-3 py-2 flex items-center justify-between cursor-pointer hover:bg-white/[0.04] transition-colors"
+            className="px-3.5 py-2.5 flex items-center justify-between cursor-pointer hover:bg-white/[0.04] transition-colors"
           >
             <div className="flex items-center space-x-2">
               {expandedFx.includes('Reverb') ? (
-                <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                <ChevronDown className="w-3.5 h-3.5 text-slate-300" />
               ) : (
                 <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
               )}
-              <span className="text-xs font-semibold text-slate-200">Convolver Reverb Send</span>
+              <span className="text-xs font-semibold text-slate-100">Convolver Reverb Send</span>
             </div>
-            <span className="w-2 h-2 rounded-full bg-purple-400 shadow-[0_0_4px_#C084FC]" />
+            <span className="w-2 h-2 rounded-full bg-purple-400 shadow-[0_0_6px_#C084FC]" />
           </div>
 
           {expandedFx.includes('Reverb') && activeTrack && (
-            <div className="p-2.5 border-t border-white/[0.04]">
+            <div className="p-3 border-t border-white/[0.06]">
               {renderPremiereControlRow({
                 target: 'track',
                 paramKey: 'reverb_send',

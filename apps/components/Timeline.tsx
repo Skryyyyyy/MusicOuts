@@ -285,15 +285,15 @@ export const Timeline: React.FC<TimelineProps> = ({
   };
 
   return (
-    <section className="flex-1 flex flex-col bg-[#090A0E] overflow-hidden select-none relative">
+    <section className="flex-1 flex flex-col bg-[#08090E]/90 overflow-hidden select-none relative">
       {/* 1. Timeline Top Ribbon (Video-Editing Tools & Zoom) */}
-      <div className="h-8 bg-[#12141C] border-b border-white/[0.08] flex items-center justify-between px-3 shrink-0 z-30">
+      <div className="h-9 apple-glass-toolbar border-b border-white/[0.08] flex items-center justify-between px-3 shrink-0 z-30">
         {/* Premiere / Final Cut Pro Editing Tools */}
-        <div className="flex items-center space-x-1">
+        <div className="flex items-center space-x-1 apple-glass-capsule px-1 py-0.5">
           <button
             onClick={() => setActiveTool('select')}
-            className={`p-1 rounded transition-colors ${
-              activeTool === 'select' ? 'bg-[#00E5FF]/20 text-[#00E5FF] font-bold shadow-[0_0_6px_#00E5FF]' : 'text-slate-400 hover:text-white'
+            className={`p-1.5 rounded-lg transition-all ${
+              activeTool === 'select' ? 'bg-[#00E5FF]/20 text-[#00E5FF] shadow-[0_0_12px_rgba(0,229,255,0.4)] border border-[#00E5FF]/40' : 'text-slate-400 hover:text-white hover:bg-white/[0.06]'
             }`}
             title="Selection / Pointer Tool (V)"
           >
@@ -302,8 +302,8 @@ export const Timeline: React.FC<TimelineProps> = ({
 
           <button
             onClick={() => setActiveTool('split')}
-            className={`p-1 rounded transition-colors ${
-              activeTool === 'split' ? 'bg-[#FF1744]/20 text-[#FF1744] font-bold shadow-[0_0_6px_#FF1744]' : 'text-slate-400 hover:text-white'
+            className={`p-1.5 rounded-lg transition-all ${
+              activeTool === 'split' ? 'bg-[#FF1744]/20 text-[#FF1744] shadow-[0_0_12px_rgba(255,23,68,0.4)] border border-[#FF1744]/40' : 'text-slate-400 hover:text-white hover:bg-white/[0.06]'
             }`}
             title="Razor Cut Tool (C) - Click any clip to slice audio"
           >
@@ -312,8 +312,8 @@ export const Timeline: React.FC<TimelineProps> = ({
 
           <button
             onClick={() => setActiveTool('slip')}
-            className={`p-1 rounded transition-colors ${
-              activeTool === 'slip' ? 'bg-amber-400/20 text-amber-400 font-bold shadow-[0_0_6px_#FBBF24]' : 'text-slate-400 hover:text-white'
+            className={`p-1.5 rounded-lg transition-all ${
+              activeTool === 'slip' ? 'bg-amber-400/20 text-amber-300 shadow-[0_0_12px_rgba(251,191,36,0.4)] border border-amber-400/40' : 'text-slate-400 hover:text-white hover:bg-white/[0.06]'
             }`}
             title="Slip Tool (Y) - Drag to slip audio inside clip"
           >
@@ -322,8 +322,8 @@ export const Timeline: React.FC<TimelineProps> = ({
 
           <button
             onClick={() => setActiveTool('curve')}
-            className={`p-1 rounded transition-colors ${
-              activeTool === 'curve' ? 'bg-purple-400/20 text-purple-400 font-bold shadow-[0_0_6px_#C084FC]' : 'text-slate-400 hover:text-white'
+            className={`p-1.5 rounded-lg transition-all ${
+              activeTool === 'curve' ? 'bg-purple-400/20 text-purple-300 shadow-[0_0_12px_rgba(192,132,252,0.4)] border border-purple-400/40' : 'text-slate-400 hover:text-white hover:bg-white/[0.06]'
             }`}
             title="Keyframe Bezier Curve Editor Tool (P)"
           >
@@ -332,8 +332,8 @@ export const Timeline: React.FC<TimelineProps> = ({
 
           <button
             onClick={() => setActiveTool('draw')}
-            className={`p-1 rounded transition-colors ${
-              activeTool === 'draw' ? 'bg-[#00E5FF]/20 text-[#00E5FF]' : 'text-slate-400 hover:text-white'
+            className={`p-1.5 rounded-lg transition-all ${
+              activeTool === 'draw' ? 'bg-[#00E5FF]/20 text-[#00E5FF] shadow-[0_0_12px_rgba(0,229,255,0.4)] border border-[#00E5FF]/40' : 'text-slate-400 hover:text-white hover:bg-white/[0.06]'
             }`}
             title="Pencil / Automation Draw (B)"
           >
@@ -342,8 +342,8 @@ export const Timeline: React.FC<TimelineProps> = ({
 
           <button
             onClick={() => setActiveTool('range')}
-            className={`p-1 rounded transition-colors ${
-              activeTool === 'range' ? 'bg-[#00E5FF]/20 text-[#00E5FF]' : 'text-slate-400 hover:text-white'
+            className={`p-1.5 rounded-lg transition-all ${
+              activeTool === 'range' ? 'bg-[#00E5FF]/20 text-[#00E5FF] shadow-[0_0_12px_rgba(0,229,255,0.4)] border border-[#00E5FF]/40' : 'text-slate-400 hover:text-white hover:bg-white/[0.06]'
             }`}
             title="Range Selection Tool (R)"
           >
@@ -355,16 +355,16 @@ export const Timeline: React.FC<TimelineProps> = ({
         <div className="flex items-center space-x-2 text-xs relative">
           <div
             onClick={() => setIsSnapMenuOpen(!isSnapMenuOpen)}
-            className="flex items-center space-x-1 text-slate-300 bg-[#1A1D27] hover:bg-[#232736] border border-white/[0.08] px-2 py-0.5 rounded cursor-pointer transition-colors"
+            className="apple-glass-btn flex items-center space-x-1.5 text-slate-200 px-2.5 py-1 rounded-full cursor-pointer transition-all"
           >
             <span className="text-[11px] text-slate-400">Snap:</span>
-            <span className="text-[11px] font-semibold text-slate-200">{snapGrid}</span>
+            <span className="text-[11px] font-semibold text-white">{snapGrid}</span>
             <ChevronDown className="w-3 h-3 text-slate-400" />
           </div>
 
           {/* Snap Grid Menu */}
           {isSnapMenuOpen && (
-            <div className="absolute right-24 top-7 w-28 bg-[#1A1D27] border border-white/10 rounded-lg shadow-2xl py-1 z-50">
+            <div className="absolute right-24 top-8 w-32 apple-glass-card rounded-xl shadow-2xl py-1.5 z-50 animate-in fade-in zoom-in-95 duration-150">
               {(['1/16', '1/8', '1/4', '1 Bar', 'Off'] as const).map((opt) => (
                 <button
                   key={opt}
@@ -372,30 +372,30 @@ export const Timeline: React.FC<TimelineProps> = ({
                     setSnapGrid(opt);
                     setIsSnapMenuOpen(false);
                   }}
-                  className={`w-full text-left px-2.5 py-1 text-xs hover:bg-[#00E5FF]/20 flex items-center justify-between ${
-                    snapGrid === opt ? 'text-[#00E5FF] font-bold' : 'text-slate-300'
+                  className={`w-full text-left px-3 py-1.5 text-xs transition-colors hover:bg-white/10 flex items-center justify-between ${
+                    snapGrid === opt ? 'text-[#00E5FF] font-bold bg-[#00E5FF]/10' : 'text-slate-300'
                   }`}
                 >
                   <span>{opt}</span>
-                  {snapGrid === opt && <span>✓</span>}
+                  {snapGrid === opt && <span className="text-[#00E5FF]">✓</span>}
                 </button>
               ))}
             </div>
           )}
 
           {/* Zoom Buttons */}
-          <div className="flex items-center bg-[#1A1D27] border border-white/[0.08] rounded p-0.5">
+          <div className="flex items-center apple-glass-capsule p-0.5">
             <button
               onClick={() => setZoomScale((prev) => Math.max(0.5, prev - 0.25))}
-              className="p-1 hover:bg-white/10 rounded text-slate-400 hover:text-white"
+              className="p-1 hover:bg-white/10 rounded-full text-slate-400 hover:text-white transition-colors"
               title="Zoom Out"
             >
               <ZoomOut className="w-3 h-3" />
             </button>
-            <span className="text-[10px] font-mono text-slate-300 px-1">{Math.round(zoomScale * 100)}%</span>
+            <span className="text-[10px] font-mono font-medium text-slate-300 px-1.5">{Math.round(zoomScale * 100)}%</span>
             <button
               onClick={() => setZoomScale((prev) => Math.min(2.5, prev + 0.25))}
-              className="p-1 hover:bg-white/10 rounded text-slate-400 hover:text-white"
+              className="p-1 hover:bg-white/10 rounded-full text-slate-400 hover:text-white transition-colors"
               title="Zoom In"
             >
               <ZoomIn className="w-3 h-3" />
@@ -410,7 +410,7 @@ export const Timeline: React.FC<TimelineProps> = ({
                 document.exitFullscreen();
               }
             }}
-            className="p-1 hover:bg-white/10 rounded text-slate-400 hover:text-white"
+            className="apple-glass-btn p-1.5 rounded-full text-slate-400 hover:text-white transition-all"
             title="Toggle Fullscreen"
           >
             <Maximize2 className="w-3.5 h-3.5" />
@@ -421,7 +421,7 @@ export const Timeline: React.FC<TimelineProps> = ({
       {/* 2. Main Timeline: Left Track Headers + Right Scrollable Clips */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left Track Headers (Fixed Column) */}
-        <div className="w-48 bg-[#12141C] border-r border-white/[0.08] shrink-0 flex flex-col pt-7 z-20 shadow-xl overflow-y-auto">
+        <div className="w-48 bg-[#0D0F18]/95 backdrop-blur-xl border-r border-white/[0.08] shrink-0 flex flex-col pt-7 z-20 shadow-xl overflow-y-auto">
           {project.tracks.map((track, idx) => {
             const Icon = getTrackIcon(track.stemType, idx);
 
@@ -429,21 +429,25 @@ export const Timeline: React.FC<TimelineProps> = ({
               <div
                 key={track.id}
                 onClick={() => onSelectTrack(track)}
-                className="h-16 border-b border-white/[0.06] px-2.5 flex items-center justify-between hover:bg-white/[0.03] transition-colors cursor-pointer"
+                className="h-16 border-b border-white/[0.06] px-2.5 flex items-center justify-between hover:bg-white/[0.04] transition-all cursor-pointer group"
               >
                 <div className="flex items-center space-x-2 overflow-hidden">
-                  <span className="text-xs font-mono text-slate-400 w-3">{idx + 1}</span>
+                  <span className="text-xs font-mono text-slate-500 w-3">{idx + 1}</span>
 
                   {/* Colored Icon Circle */}
                   <div
-                    className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 shadow-md"
-                    style={{ backgroundColor: `${track.color}25`, border: `1px solid ${track.color}80` }}
+                    className="w-7 h-7 rounded-xl flex items-center justify-center shrink-0 shadow-lg transition-transform group-hover:scale-105"
+                    style={{
+                      backgroundColor: `${track.color}25`,
+                      border: `1px solid ${track.color}60`,
+                      boxShadow: `0 0 12px ${track.color}20`,
+                    }}
                   >
                     <Icon className="w-3.5 h-3.5" style={{ color: track.color }} />
                   </div>
 
                   <div className="overflow-hidden">
-                    <span className="text-xs font-semibold text-slate-200 truncate block">
+                    <span className="text-xs font-semibold text-slate-200 truncate block group-hover:text-white">
                       {track.name}
                     </span>
                     {/* M, S, Record Controls */}
@@ -453,8 +457,10 @@ export const Timeline: React.FC<TimelineProps> = ({
                           e.stopPropagation();
                           onToggleTrackMute(track.id);
                         }}
-                        className={`text-[9px] font-mono font-bold px-1 rounded ${
-                          track.isMuted ? 'bg-red-500 text-white font-black' : 'text-slate-400 hover:text-white'
+                        className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded transition-all ${
+                          track.isMuted
+                            ? 'bg-red-500 text-white font-black shadow-[0_0_8px_rgba(239,68,68,0.5)]'
+                            : 'text-slate-400 hover:text-white hover:bg-white/10'
                         }`}
                       >
                         M
@@ -464,21 +470,23 @@ export const Timeline: React.FC<TimelineProps> = ({
                           e.stopPropagation();
                           onToggleTrackSolo(track.id);
                         }}
-                        className={`text-[9px] font-mono font-bold px-1 rounded ${
-                          track.isSoloed ? 'bg-amber-400 text-black font-black' : 'text-slate-400 hover:text-white'
+                        className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded transition-all ${
+                          track.isSoloed
+                            ? 'bg-amber-400 text-black font-black shadow-[0_0_8px_rgba(251,191,36,0.5)]'
+                            : 'text-slate-400 hover:text-white hover:bg-white/10'
                         }`}
                       >
                         S
                       </button>
-                      <div className="w-2 h-2 rounded-full bg-red-500/80 shadow-[0_0_4px_#EF4444]" />
+                      <div className="w-2 h-2 rounded-full bg-red-500/80 shadow-[0_0_6px_#EF4444]" />
                     </div>
                   </div>
                 </div>
 
                 {/* Track mini level meter */}
-                <div className="w-1.5 h-8 bg-black/40 rounded overflow-hidden p-0.5 border border-white/[0.06] flex flex-col justify-end">
+                <div className="w-1.5 h-8 bg-black/50 rounded-full overflow-hidden p-0.5 border border-white/[0.08] flex flex-col justify-end">
                   <div
-                    className="w-full bg-emerald-400 rounded-sm transition-all duration-75"
+                    className="w-full bg-gradient-to-t from-emerald-500 via-lime-400 to-amber-300 rounded-full transition-all duration-75"
                     style={{
                       height: `${Math.min(100, Math.max(10, meterLevels.left * (100 - idx * 10)))}%`,
                     }}
@@ -492,7 +500,7 @@ export const Timeline: React.FC<TimelineProps> = ({
           {onAddTrack && (
             <button
               onClick={onAddTrack}
-              className="m-2 py-2 border border-dashed border-white/20 hover:border-[#00E5FF] hover:bg-[#00E5FF]/10 text-slate-400 hover:text-[#00E5FF] rounded-lg text-xs font-medium flex items-center justify-center gap-1 transition-all"
+              className="m-2.5 py-2 apple-glass-btn border-dashed border-white/20 hover:border-[#00E5FF]/60 hover:bg-[#00E5FF]/10 text-slate-300 hover:text-[#00E5FF] rounded-xl text-xs font-medium flex items-center justify-center gap-1.5 transition-all shadow-sm"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>Add Audio Track</span>
@@ -503,7 +511,7 @@ export const Timeline: React.FC<TimelineProps> = ({
         {/* Right Scrollable Timeline Canvas */}
         <div
           ref={scrollContainerRef}
-          className={`flex-1 overflow-x-auto overflow-y-auto relative bg-[#08090D] ${
+          className={`flex-1 overflow-x-auto overflow-y-auto relative bg-[#06070B] ${
             activeTool === 'split' ? 'cursor-crosshair' : activeTool === 'slip' ? 'cursor-ew-resize' : 'cursor-default'
           }`}
         >
@@ -511,7 +519,7 @@ export const Timeline: React.FC<TimelineProps> = ({
             {/* Top Time Ruler */}
             <div
               onMouseDown={handleRulerMouseDown}
-              className="h-7 border-b border-white/[0.08] bg-[#0E0F14] sticky top-0 z-30 cursor-pointer flex items-center select-none shadow-sm"
+              className="h-7 border-b border-white/[0.08] bg-[#0A0C13]/90 backdrop-blur-md sticky top-0 z-30 cursor-pointer flex items-center select-none shadow-sm"
             >
               {rulerMarks.map((mark, i) => (
                 <div
@@ -579,37 +587,41 @@ export const Timeline: React.FC<TimelineProps> = ({
                             e.stopPropagation();
                             if (onDoubleClickClip) onDoubleClickClip(clip);
                           }}
-                          className={`absolute top-1 bottom-1 rounded-md overflow-hidden flex flex-col border shadow-lg transition-all ${
+                          className={`absolute top-1 bottom-1 rounded-xl overflow-hidden flex flex-col apple-clip-glass transition-all ${
                             isSelected
-                              ? 'ring-2 ring-white border-white z-20'
-                              : 'border-white/10 hover:border-white/30'
+                              ? 'ring-2 ring-white/90 shadow-[0_8px_24px_rgba(0,0,0,0.6),0_0_20px_rgba(255,255,255,0.3)] z-20'
+                              : 'hover:brightness-110 shadow-lg'
                           }`}
                           style={{
                             left: `${clipLeft}px`,
                             width: `${Math.max(30, clipWidth)}px`,
-                            backgroundColor: track.color,
+                            backgroundColor: `${track.color}40`,
+                            borderColor: `${track.color}80`,
+                            boxShadow: isSelected
+                              ? `0 0 20px ${track.color}60, inset 0 1px 0 0 rgba(255,255,255,0.4)`
+                              : `inset 0 1px 0 0 rgba(255,255,255,0.25)`,
                           }}
                         >
                           {/* Left Trim Handle */}
                           <div
                             onMouseDown={(e) => handleClipMouseDown(e, clip, 'trim-left')}
-                            className="absolute left-0 top-0 bottom-0 w-2 hover:w-3 bg-white/20 hover:bg-white/60 cursor-ew-resize z-30 transition-all"
+                            className="absolute left-0 top-0 bottom-0 w-2 hover:w-3 bg-white/20 hover:bg-white/70 cursor-ew-resize z-30 transition-all rounded-l-xl"
                             title="Trim Start (Drag)"
                           />
 
                           {/* Right Trim Handle */}
                           <div
                             onMouseDown={(e) => handleClipMouseDown(e, clip, 'trim-right')}
-                            className="absolute right-0 top-0 bottom-0 w-2 hover:w-3 bg-white/20 hover:bg-white/60 cursor-ew-resize z-30 transition-all"
+                            className="absolute right-0 top-0 bottom-0 w-2 hover:w-3 bg-white/20 hover:bg-white/70 cursor-ew-resize z-30 transition-all rounded-r-xl"
                             title="Trim End (Drag)"
                           />
 
                           {/* In-Clip Title Label at Top-Left */}
-                          <div className="px-2 py-0.5 text-[10px] font-bold text-black/80 truncate select-none pl-3 flex items-center justify-between">
-                            <span>{clip.name}</span>
+                          <div className="px-2.5 py-0.5 text-[10px] font-bold text-white tracking-wide truncate select-none pl-3 flex items-center justify-between bg-black/30 backdrop-blur-sm border-b border-white/[0.08]">
+                            <span className="drop-shadow-sm">{clip.name}</span>
                             {activeTool === 'slip' && isSelected && (
-                              <span className="text-[8px] bg-black/60 text-amber-300 px-1 rounded font-mono">
-                                SLIP MODE
+                              <span className="text-[8px] bg-amber-500/80 text-black px-1.5 py-0.2 rounded-full font-mono font-bold shadow">
+                                SLIP
                               </span>
                             )}
                           </div>
@@ -620,20 +632,20 @@ export const Timeline: React.FC<TimelineProps> = ({
                               sourceAsset={project.sources[clip.sourceId]}
                               sourceIn={activeIn}
                               sourceOut={activeOut}
-                              color="#0D0E13"
+                              color="#FFFFFF"
                               fadeIn={clip.fadeIn}
                               fadeOut={clip.fadeOut}
                               isSelected={isSelected}
                             />
 
                             {/* Final Cut Pro / Premiere Style Bezier Spline Keyframe Curve Overlay */}
-                            <svg className="absolute inset-0 w-full h-full pointer-events-none">
+                            <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-80">
                               <path
                                 d={`M 0,22 Q ${clipWidth * 0.25},10 ${clipWidth * 0.5},18 T ${clipWidth},14`}
                                 fill="none"
-                                stroke="rgba(255,255,255,0.9)"
+                                stroke="rgba(255,255,255,0.85)"
                                 strokeWidth="1.6"
-                                className="drop-shadow-[0_0_3px_rgba(255,255,255,0.8)]"
+                                className="drop-shadow-[0_0_4px_rgba(255,255,255,0.9)]"
                               />
                               <polygon
                                 points={`${clipWidth * 0.25 - 3},10 ${clipWidth * 0.25},7 ${clipWidth * 0.25 + 3},10 ${clipWidth * 0.25},13`}
@@ -651,8 +663,8 @@ export const Timeline: React.FC<TimelineProps> = ({
                                 className="absolute top-0 bottom-0 pointer-events-none z-40"
                                 style={{ left: `${razorHover.x}px` }}
                               >
-                                <div className="w-0.5 h-full bg-[#FF1744] shadow-[0_0_8px_#FF1744] relative">
-                                  <div className="absolute -top-4 -left-6 bg-red-600 text-white font-mono text-[9px] px-1 py-0.2 rounded shadow">
+                                <div className="w-0.5 h-full bg-[#FF1744] shadow-[0_0_10px_#FF1744] relative">
+                                  <div className="absolute -top-4 -left-6 bg-red-600/90 backdrop-blur-md text-white font-mono text-[9px] px-1.5 py-0.5 rounded-md shadow-lg border border-white/20">
                                     ✂ {razorHover.time.toFixed(1)}s
                                   </div>
                                 </div>
@@ -670,23 +682,23 @@ export const Timeline: React.FC<TimelineProps> = ({
             {/* Empty Timeline Pristine Dropzone Banner */}
             {project.clips.length === 0 && (
               <div className="absolute inset-0 top-16 flex flex-col items-center justify-center pointer-events-none z-10">
-                <div className="bg-[#12141F]/90 border border-white/10 rounded-2xl p-6 flex flex-col items-center gap-3 text-center max-w-md shadow-2xl backdrop-blur-sm pointer-events-auto">
-                  <div className="w-12 h-12 rounded-xl bg-[#00E5FF]/10 border border-[#00E5FF]/30 flex items-center justify-center">
-                    <FolderOpen className="w-6 h-6 text-[#00E5FF]" />
+                <div className="apple-glass-card rounded-3xl p-8 flex flex-col items-center gap-4 text-center max-w-md shadow-2xl pointer-events-auto border border-white/15 animate-in fade-in zoom-in-95 duration-200">
+                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#00E5FF]/20 to-[#7000FF]/20 border border-white/20 flex items-center justify-center shadow-lg shadow-[#00E5FF]/10">
+                    <FolderOpen className="w-7 h-7 text-[#00E5FF]" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-bold text-white tracking-wide">
+                    <h3 className="text-base font-bold text-white tracking-wide">
                       Clean Timeline Session Ready
                     </h3>
-                    <p className="text-xs text-slate-400 mt-1">
+                    <p className="text-xs text-slate-300 mt-1 leading-relaxed">
                       Drag samples from the left Media Browser or import audio from YouTube, Spotify, or local files.
                     </p>
                   </div>
-                  <div className="flex items-center gap-2 mt-2">
+                  <div className="flex items-center gap-2.5 mt-2">
                     {onOpenURLImport && (
                       <button
                         onClick={onOpenURLImport}
-                        className="px-3 py-1.5 bg-[#00E5FF]/20 hover:bg-[#00E5FF]/30 border border-[#00E5FF]/50 rounded-lg text-xs font-bold text-[#00E5FF] flex items-center gap-1.5 transition-colors"
+                        className="apple-glass-btn-primary px-3.5 py-2 text-xs font-bold flex items-center gap-1.5 transition-transform hover:scale-105 active:scale-95"
                       >
                         <Music className="w-3.5 h-3.5" />
                         <span>Download URL</span>
@@ -695,7 +707,7 @@ export const Timeline: React.FC<TimelineProps> = ({
                     {onImportAudioFile && (
                       <button
                         onClick={onImportAudioFile}
-                        className="px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-xs font-semibold text-slate-200 flex items-center gap-1.5 transition-colors"
+                        className="apple-glass-btn px-3.5 py-2 text-xs font-semibold text-slate-200 flex items-center gap-1.5 transition-transform hover:scale-105 active:scale-95"
                       >
                         <FolderOpen className="w-3.5 h-3.5 text-pink-400" />
                         <span>Local Audio</span>
@@ -704,7 +716,7 @@ export const Timeline: React.FC<TimelineProps> = ({
                     {onLoadDemoProject && (
                       <button
                         onClick={onLoadDemoProject}
-                        className="px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-xs font-semibold text-slate-200 flex items-center gap-1.5 transition-colors"
+                        className="apple-glass-btn px-3.5 py-2 text-xs font-semibold text-slate-200 flex items-center gap-1.5 transition-transform hover:scale-105 active:scale-95"
                       >
                         <span>Demo Studio</span>
                       </button>
@@ -719,8 +731,8 @@ export const Timeline: React.FC<TimelineProps> = ({
               className="absolute top-0 bottom-0 pointer-events-none z-40 transition-transform duration-75"
               style={{ transform: `translateX(${timeToPx(currentTime)}px)` }}
             >
-              <div className="w-0.5 h-full bg-[#FF1744] shadow-[0_0_8px_#FF1744] relative">
-                <div className="w-3 h-3 bg-[#FF1744] rounded-full absolute -top-1.5 -left-[5px] shadow-[0_0_6px_#FF1744]" />
+              <div className="w-0.5 h-full bg-[#FF1744] shadow-[0_0_10px_#FF1744] relative">
+                <div className="w-3.5 h-3.5 bg-[#FF1744] rounded-full absolute -top-1.5 -left-[6px] shadow-[0_0_8px_#FF1744] border border-white/50" />
               </div>
             </div>
           </div>
