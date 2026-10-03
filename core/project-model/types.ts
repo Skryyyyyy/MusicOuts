@@ -115,6 +115,8 @@ export interface Project {
   sections: SongSection[];
   masterVolume: number;
   masterLimiterCeiling: number; // dB (e.g. -0.1 dB)
+  key?: string;
+  folderPath?: string;
   createdAt: string;
   updatedAt: string;
 }

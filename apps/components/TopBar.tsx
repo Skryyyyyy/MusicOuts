@@ -73,6 +73,17 @@ interface TopBarProps {
   onToggleRecord: () => void;
   onMasterVolumeChange: (vol: number) => void;
 
+  // User & Project Hub
+  user?: {
+    username: string;
+    email: string;
+    avatar: string;
+    tier: string;
+  };
+  folderPath?: string;
+  onOpenProjectHub?: () => void;
+  onSignOut?: () => void;
+
   // Modals & Menu Actions
   onOpenMixer: () => void;
   onOpenSampleEditor: () => void;
@@ -110,6 +121,10 @@ export const TopBar: React.FC<TopBarProps> = ({
   isRightInspectorOpen,
   isBottomStudioOpen,
   isTimelineFocused = false,
+  user,
+  folderPath,
+  onOpenProjectHub,
+  onSignOut,
   onToggleLeftSidebar,
   onToggleRightInspector,
   onToggleBottomStudio,
@@ -226,9 +241,13 @@ export const TopBar: React.FC<TopBarProps> = ({
 
   const menuItems: Record<string, { label: string; shortcut?: string; action: () => void; divider?: boolean }[]> = {
     File: [
+      { label: 'Project Hub (Open Folder / New Session)...', shortcut: 'Ctrl+Shift+O', action: () => {
+        if (onOpenProjectHub) onOpenProjectHub();
+        else onOpenProject();
+      }, divider: true },
       { label: 'New Blank Session', shortcut: 'Ctrl+N', action: onNewEmptyProject },
       { label: 'Load Demo Studio Project', action: onLoadDemoProject },
-      { label: 'Open Project...', shortcut: 'Ctrl+O', action: onOpenProject },
+      { label: 'Open Project File...', shortcut: 'Ctrl+O', action: onOpenProject },
       { label: 'Save Project', shortcut: 'Ctrl+S', action: onSaveProject },
       { label: 'Clear Timeline Clips', action: onClearTimeline, divider: true },
       { label: 'Download from Spotify / YouTube / Apple Music...', shortcut: 'Ctrl+U', action: () => {
@@ -357,7 +376,7 @@ export const TopBar: React.FC<TopBarProps> = ({
           </div>
         ))}
 
-        {/* Project Selector Box */}
+        {/* Project Selector Box & Folder Badge */}
         {isEditingTitle ? (
           <input
             type="text"
@@ -377,14 +396,24 @@ export const TopBar: React.FC<TopBarProps> = ({
             className="bg-[#171923] border border-[#00E5FF] px-2 py-0.5 rounded text-xs text-white font-medium ml-2 outline-none"
           />
         ) : (
-          <div
-            onClick={() => setIsEditingTitle(true)}
-            className="flex items-center space-x-1.5 bg-[#171923] hover:bg-[#1E212E] border border-white/[0.08] px-2.5 py-1 rounded-md cursor-pointer ml-2 transition-colors"
-            title="Click to rename project"
-          >
-            <Folder className="w-3.5 h-3.5 text-slate-400" />
-            <span className="text-xs font-medium text-slate-200">{projectTitle}</span>
-            <ChevronDown className="w-3 h-3 text-slate-400 ml-1" />
+          <div className="flex items-center ml-2 space-x-1">
+            <div
+              onClick={() => {
+                if (onOpenProjectHub) onOpenProjectHub();
+                else setIsEditingTitle(true);
+              }}
+              className="flex items-center space-x-1.5 bg-[#171923] hover:bg-[#1E212E] border border-white/[0.08] hover:border-blue-500/30 px-2.5 py-1 rounded-md cursor-pointer transition-colors group"
+              title={folderPath ? `Project Folder: ${folderPath} (Click to open Project Hub)` : 'Click to open Project Hub'}
+            >
+              <Folder className="w-3.5 h-3.5 text-blue-400 group-hover:text-blue-300" />
+              <span className="text-xs font-semibold text-slate-200 group-hover:text-white max-w-[140px] truncate">{projectTitle}</span>
+              {folderPath && (
+                <span className="text-[10px] text-slate-500 font-mono hidden md:inline max-w-[100px] truncate">
+                  ({folderPath.split('/').pop() || folderPath.split('\\').pop()})
+                </span>
+              )}
+              <ChevronDown className="w-3 h-3 text-slate-400 ml-0.5" />
+            </div>
           </div>
         )}
       </div>
@@ -644,6 +673,35 @@ export const TopBar: React.FC<TopBarProps> = ({
           />
           <Headphones className="w-3.5 h-3.5 text-slate-400" />
         </div>
+
+        {/* User Session Pill */}
+        {user && (
+          <div className="flex items-center space-x-2 pl-2 border-l border-white/[0.08]">
+            <button
+              onClick={onOpenProjectHub}
+              className="flex items-center space-x-1.5 px-2 py-0.5 rounded-full bg-white/[0.05] hover:bg-white/[0.1] border border-white/10 transition-colors"
+              title={`Logged in as ${user.username} (${user.tier})`}
+            >
+              <img
+                src={user.avatar}
+                alt={user.username}
+                className="w-4 h-4 rounded-full object-cover border border-blue-400"
+              />
+              <span className="text-[11px] font-medium text-slate-300 hidden xl:inline max-w-[90px] truncate">
+                {user.username}
+              </span>
+            </button>
+            {onSignOut && (
+              <button
+                onClick={onSignOut}
+                className="p-1 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 rounded text-xs transition-colors"
+                title="Sign Out"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Window Controls */}
         <div className="flex items-center space-x-1 pl-1 border-l border-white/[0.08]">

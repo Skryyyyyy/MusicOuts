@@ -322,6 +322,11 @@ export class AudioEngine {
     this.isPlayingState = false;
   }
 
+  public stop(): void {
+    this.pause();
+    this.seek(0);
+  }
+
   public seek(targetTime: number): void {
     const wasPlaying = this.isPlayingState;
     if (wasPlaying) {

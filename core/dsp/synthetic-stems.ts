@@ -655,3 +655,84 @@ export function createEmptyProject(): Project {
   };
 }
 
+export function createTemplateProject(config: {
+  name: string;
+  folderPath: string;
+  bpm: number;
+  key: string;
+  timeSignature: [number, number];
+  sampleRate: number;
+  template: 'empty' | 'pro-nle' | 'demucs-stems' | 'vocal-master' | 'synth-midi';
+}): Project {
+  let trackConfigs: Array<{ name: string; color: string; stemType: any }> = [];
+
+  if (config.template === 'demucs-stems') {
+    trackConfigs = [
+      { name: 'Vocals', color: '#EC4899', stemType: 'vocals' },
+      { name: 'Drums', color: '#3B82F6', stemType: 'drums' },
+      { name: 'Bass', color: '#10B981', stemType: 'bass' },
+      { name: 'Other', color: '#8B5CF6', stemType: 'other' },
+    ];
+  } else if (config.template === 'vocal-master') {
+    trackConfigs = [
+      { name: 'Lead Vocal', color: '#EC4899', stemType: 'vocals' },
+      { name: 'Double Vocal', color: '#F43F5E', stemType: 'vocals' },
+      { name: 'Vocal Harmonies', color: '#A855F7', stemType: 'vocals' },
+      { name: 'Backing Track', color: '#3B82F6', stemType: 'other' },
+    ];
+  } else if (config.template === 'synth-midi') {
+    trackConfigs = [
+      { name: 'Lead Synth', color: '#06B6D4', stemType: 'other' },
+      { name: 'Sub Bass', color: '#10B981', stemType: 'bass' },
+      { name: 'Rhythm Beat', color: '#3B82F6', stemType: 'drums' },
+      { name: 'Atmosphere & FX', color: '#8B5CF6', stemType: 'other' },
+    ];
+  } else if (config.template === 'empty') {
+    trackConfigs = [{ name: 'Audio Track 01', color: '#00E5FF', stemType: 'other' }];
+  } else {
+    trackConfigs = [
+      { name: 'Lead Vocals', color: '#EC4899', stemType: 'vocals' },
+      { name: 'Drums & Percussion', color: '#3B82F6', stemType: 'drums' },
+      { name: 'Bass Line', color: '#10B981', stemType: 'bass' },
+      { name: 'Melody & Synths', color: '#F59E0B', stemType: 'other' },
+    ];
+  }
+
+  const tracks: Track[] = trackConfigs.map((tc, idx) => ({
+    id: `track-${Date.now()}-${idx + 1}`,
+    name: tc.name,
+    stemType: tc.stemType,
+    color: tc.color,
+    volume: 1.0,
+    pan: 0,
+    isMuted: false,
+    isSoloed: false,
+    eqLowGain: 0,
+    eqMidGain: 0,
+    eqHighGain: 0,
+    reverbSend: 0.1,
+    automationLanes: [],
+  }));
+
+  return {
+    schemaVersion: 1,
+    id: `proj-${Date.now()}`,
+    name: config.name,
+    bpm: config.bpm,
+    timeSignature: config.timeSignature,
+    sampleRate: config.sampleRate,
+    duration: 120.0,
+    sources: {},
+    tracks,
+    clips: [],
+    markers: [],
+    sections: [],
+    key: config.key,
+    folderPath: config.folderPath,
+    masterVolume: 1.0,
+    masterLimiterCeiling: -0.1,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+}
+

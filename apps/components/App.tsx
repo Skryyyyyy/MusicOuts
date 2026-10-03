@@ -9,11 +9,13 @@ import {
   AddTrackCommand,
 } from '../../core/project-model/commands';
 import { AudioEngine } from '../../core/audio-engine/graph';
-import { createDemoProject, createEmptyProject } from '../../core/dsp/synthetic-stems';
+import { createDemoProject, createEmptyProject, createTemplateProject } from '../../core/dsp/synthetic-stems';
 import { detectBpmAndBeats } from '../../core/analysis/bpm';
 import { detectSongSections } from '../../core/analysis/sections';
 import { SeparatedStemResult } from '../../ml/stem-lab/service';
 
+import { LoginPage, UserSession } from './LoginPage';
+import { ProjectHubModal } from './ProjectHubModal';
 import { TopBar } from './TopBar';
 import { MediaSidebar } from './MediaSidebar';
 import { Timeline } from './Timeline';
@@ -37,6 +39,17 @@ export const App: React.FC = () => {
   const [engine] = useState(() => new AudioEngine());
   const [cmdManager] = useState(() => new CommandManager(150));
   const [project, setProject] = useState<Project | null>(null);
+
+  // User Authentication & Project Launcher Hub State
+  const [userSession, setUserSession] = useState<UserSession | null>(() => {
+    try {
+      const saved = localStorage.getItem('musicouts_user_session');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [isProjectHubOpen, setIsProjectHubOpen] = useState<boolean>(false);
 
   // Panel Minimizing / Collapse States
   const [isLeftSidebarOpen, setIsLeftSidebarOpen] = useState<boolean>(true);
@@ -904,6 +917,17 @@ export const App: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [engine, project, selectedClipId, selectedTrackId, currentTime]);
 
+  if (!userSession) {
+    return (
+      <LoginPage
+        onLoginSuccess={(session) => {
+          setUserSession(session);
+          setIsProjectHubOpen(true);
+        }}
+      />
+    );
+  }
+
   if (!project) {
     return (
       <div className="h-screen w-screen flex items-center justify-center bg-[#0D0E13] text-white">
@@ -942,12 +966,23 @@ export const App: React.FC = () => {
         projectTitle={project.name}
         bpm={project.bpm}
         timeSignature={project.timeSignature}
+        currentKey={project.key || 'Cmaj'}
         currentTime={currentTime}
         isPlaying={isPlaying}
         isRecording={isRecording}
         isMetronomeOn={isMetronomeOn}
         masterVolume={project.masterVolume}
         meterLevels={meterLevels}
+        user={userSession}
+        folderPath={project.folderPath}
+        onOpenProjectHub={() => setIsProjectHubOpen(true)}
+        onSignOut={() => {
+          engine.stop();
+          setIsPlaying(false);
+          localStorage.removeItem('musicouts_user_session');
+          setUserSession(null);
+          setIsProjectHubOpen(false);
+        }}
         isLeftSidebarOpen={isLeftSidebarOpen}
         isRightInspectorOpen={isRightInspectorOpen}
         isBottomStudioOpen={isBottomStudioOpen}
@@ -1255,6 +1290,61 @@ export const App: React.FC = () => {
             if (firstAsset) setStemLabAsset(firstAsset);
           }}
           onOpenAIMastering={() => setIsAIMasteringOpen(true)}
+        />
+      )}
+
+      {/* L. Pro Project Launcher Hub: Open Existing Folder or Start New Project */}
+      {isProjectHubOpen && (
+        <ProjectHubModal
+          user={userSession}
+          isOpen={isProjectHubOpen}
+          canCloseWithoutSelection={!!project}
+          onClose={() => setIsProjectHubOpen(false)}
+          onSignOut={() => {
+            engine.stop();
+            setIsPlaying(false);
+            localStorage.removeItem('musicouts_user_session');
+            setUserSession(null);
+            setIsProjectHubOpen(false);
+          }}
+          onOpenExistingProject={(item) => {
+            if (item.id === 'proj-demo-1' && audioCtx) {
+              const demo = createDemoProject(audioCtx);
+              demo.buffers.forEach((buf, id) => engine.registerAudioBuffer(id, buf));
+              setProject({ ...demo.project, name: item.name, folderPath: item.folderPath });
+            } else {
+              const customProj = createTemplateProject({
+                name: item.name,
+                folderPath: item.folderPath,
+                bpm: item.bpm,
+                key: item.key,
+                timeSignature: [4, 4],
+                sampleRate: 48000,
+                template: (item.templateType as any) || 'pro-nle',
+              });
+              setProject(customProj);
+            }
+            setIsProjectHubOpen(false);
+          }}
+          onOpenFolderDirectly={(folderPath) => {
+            const folderName = folderPath.split('/').pop() || folderPath.split('\\').pop() || 'Imported Session';
+            const loadedProj = createTemplateProject({
+              name: folderName,
+              folderPath: folderPath,
+              bpm: 120,
+              key: 'C Major',
+              timeSignature: [4, 4],
+              sampleRate: 48000,
+              template: 'pro-nle',
+            });
+            setProject(loadedProj);
+            setIsProjectHubOpen(false);
+          }}
+          onCreateNewProject={(config) => {
+            const newProj = createTemplateProject(config);
+            setProject(newProj);
+            setIsProjectHubOpen(false);
+          }}
         />
       )}
     </div>
