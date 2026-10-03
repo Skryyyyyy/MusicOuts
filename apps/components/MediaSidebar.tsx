@@ -19,6 +19,7 @@ import {
 interface MediaSidebarProps {
   sources: Record<string, SourceAsset>;
   onDragStartSample: (e: React.DragEvent, asset: SourceAsset, section?: SongSection) => void;
+  onAddSampleToTimeline?: (asset: SourceAsset) => void;
   onAddSource?: (asset: SourceAsset, buffer: AudioBuffer) => void;
   onPreviewSample?: (sampleId: string) => void;
   onStopPreview?: () => void;
@@ -41,6 +42,7 @@ interface MediaSampleItem {
 export const MediaSidebar: React.FC<MediaSidebarProps> = ({
   sources,
   onDragStartSample,
+  onAddSampleToTimeline,
   onAddSource,
   onPreviewSample,
   onStopPreview,
@@ -241,10 +243,26 @@ export const MediaSidebar: React.FC<MediaSidebarProps> = ({
                   </div>
                 </div>
 
-                <div
-                  className="w-2 h-2 rounded-full shrink-0"
-                  style={{ backgroundColor: item.color }}
-                />
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {onAddSampleToTimeline && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onAddSampleToTimeline(sourceAsset);
+                      }}
+                      className="px-1.5 py-0.5 rounded bg-blue-500/20 hover:bg-blue-500/40 text-blue-400 hover:text-white border border-blue-500/30 text-[10px] flex items-center gap-0.5 font-bold transition-colors opacity-0 group-hover:opacity-100"
+                      title="Add to active track at playhead"
+                    >
+                      <Plus className="w-2.5 h-2.5" />
+                      <span>Add</span>
+                    </button>
+                  )}
+                  <div
+                    className="w-2 h-2 rounded-full shrink-0"
+                    style={{ backgroundColor: item.color }}
+                  />
+                </div>
               </div>
 
               {/* Glowing Mini Waveform Strip */}

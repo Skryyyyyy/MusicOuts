@@ -12,6 +12,7 @@ import { AudioEngine } from '../../core/audio-engine/graph';
 import { createDemoProject, createEmptyProject, createTemplateProject } from '../../core/dsp/synthetic-stems';
 import { detectBpmAndBeats } from '../../core/analysis/bpm';
 import { detectSongSections } from '../../core/analysis/sections';
+import { generatePeakPyramid } from '../../core/analysis/waveform';
 import { SeparatedStemResult } from '../../ml/stem-lab/service';
 
 import { LoginPage, UserSession } from './LoginPage';
@@ -232,6 +233,7 @@ export const App: React.FC = () => {
         const audioCtx = engine.getAudioContext() || new AudioContext();
         const arrayBuffer = await file.arrayBuffer();
         const decodedBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+        const pyramid = generatePeakPyramid(decodedBuffer);
 
         const sourceId = `src-imported-${Date.now()}`;
         const newAsset: SourceAsset = {
@@ -242,6 +244,7 @@ export const App: React.FC = () => {
           channels: decodedBuffer.numberOfChannels,
           fileSize: file.size,
           bpm: 120,
+          peakPyramids: pyramid.levels as any,
           audioBuffer: decodedBuffer,
         };
 
@@ -284,12 +287,16 @@ export const App: React.FC = () => {
           automationLanes: [],
         };
 
-        setProject({
+        const updatedProject = {
           ...project,
           sources: { ...project.sources, [sourceId]: newAsset },
           tracks: newTracks,
           clips: [...project.clips, newClip],
-        });
+        };
+
+        setProject(updatedProject);
+        engine.syncProject(updatedProject);
+        setSelectedTrackId(targetTrackId);
         setSelectedClipId(newClip.id);
       }
     };
@@ -304,6 +311,10 @@ export const App: React.FC = () => {
     addToTimeline: boolean
   ) => {
     if (!project) return;
+    const pyramid = generatePeakPyramid(audioBuffer);
+    asset.peakPyramids = pyramid.levels as any;
+    asset.audioBuffer = audioBuffer;
+
     engine.registerAudioBuffer(asset.id, audioBuffer);
 
     let newTracks = [...project.tracks];
@@ -329,6 +340,7 @@ export const App: React.FC = () => {
     }
 
     const newClips = [...project.clips];
+    let insertedClipId: string | null = null;
     if (addToTimeline) {
       const newClip: Clip = {
         id: `clip-url-${Date.now()}`,
@@ -344,15 +356,22 @@ export const App: React.FC = () => {
         automationLanes: [],
       };
       newClips.push(newClip);
-      setSelectedClipId(newClip.id);
+      insertedClipId = newClip.id;
     }
 
-    setProject({
+    const updatedProject = {
       ...project,
       sources: { ...project.sources, [asset.id]: asset },
       tracks: newTracks,
       clips: newClips,
-    });
+    };
+
+    setProject(updatedProject);
+    engine.syncProject(updatedProject);
+    setSelectedTrackId(targetTrackId);
+    if (insertedClipId) {
+      setSelectedClipId(insertedClipId);
+    }
   };
 
   // Execute AI Assistant Orchestration Actions
@@ -718,15 +737,48 @@ export const App: React.FC = () => {
     setSelectedTrackId(newTrack.id);
   };
 
-  // Drag & Drop Sample onto Track
+  // Drag & Drop or Add Sample onto Track
   const handleDragStartSample = (e: React.DragEvent, asset: SourceAsset, section?: SongSection) => {
     e.dataTransfer.setData('application/json', JSON.stringify({ asset, section }));
   };
 
   const handleDropSampleOnTrack = (trackId: string, time: number, asset: SourceAsset, section?: SongSection) => {
     if (!project) return;
+
+    // Ensure audio buffer is registered in engine
+    let registeredBuffer = engine.getAllRegisteredAudioBuffers().get(asset.id);
+    const audioCtx = engine.getAudioContext() || new AudioContext();
+
+    if (!registeredBuffer) {
+      const sampleRate = audioCtx.sampleRate || 48000;
+      const durationSec = Math.max(4, asset.duration || 16);
+      const numSamples = Math.floor(sampleRate * Math.min(30, durationSec));
+      registeredBuffer = audioCtx.createBuffer(2, numSamples, sampleRate);
+      const l = registeredBuffer.getChannelData(0);
+      const r = registeredBuffer.getChannelData(1);
+      const bpm = asset.bpm || 120;
+      const beatSec = 60 / bpm;
+
+      for (let i = 0; i < numSamples; i++) {
+        const t = i / sampleRate;
+        const beatEnv = Math.exp(-((t % beatSec) * 10));
+        const kick = Math.sin(2 * Math.PI * 60 * t) * beatEnv * 0.4;
+        const synth = Math.sin(2 * Math.PI * 220 * t) * 0.15 * Math.sin(t * 2);
+        l[i] = Math.max(-0.95, Math.min(0.95, kick + synth));
+        r[i] = Math.max(-0.95, Math.min(0.95, kick * 0.9 + synth * 1.1));
+      }
+
+      engine.registerAudioBuffer(asset.id, registeredBuffer);
+    }
+
+    if (!asset.peakPyramids && registeredBuffer) {
+      const pyramid = generatePeakPyramid(registeredBuffer);
+      asset.peakPyramids = pyramid.levels as any;
+      asset.audioBuffer = registeredBuffer;
+    }
+
     const sourceIn = section ? section.startTime : 0;
-    const sourceOut = section ? section.endTime : Math.min(16, asset.duration);
+    const sourceOut = section ? section.endTime : Math.min(120, asset.duration || 16);
 
     const newClip: Clip = {
       id: `clip-${Date.now()}`,
@@ -742,11 +794,47 @@ export const App: React.FC = () => {
       automationLanes: [],
     };
 
-    setProject({
+    const updatedSources = { ...project.sources, [asset.id]: asset };
+    const updatedClips = [...project.clips, newClip];
+
+    const updatedProject = {
       ...project,
-      clips: [...project.clips, newClip],
-    });
+      sources: updatedSources,
+      clips: updatedClips,
+    };
+
+    setProject(updatedProject);
+    engine.syncProject(updatedProject);
+    setSelectedTrackId(trackId);
     setSelectedClipId(newClip.id);
+  };
+
+  const handleAddSampleToTimeline = (asset: SourceAsset) => {
+    if (!project) return;
+    let targetTrackId = selectedTrackId;
+    let updatedTracks = [...project.tracks];
+
+    if (!targetTrackId || updatedTracks.length === 0) {
+      targetTrackId = `track-${Date.now()}`;
+      updatedTracks.push({
+        id: targetTrackId,
+        name: asset.name.replace(/\.[^/.]+$/, ''),
+        stemType: 'other',
+        color: '#00E5FF',
+        volume: 1.0,
+        pan: 0,
+        isMuted: false,
+        isSoloed: false,
+        eqLowGain: 0,
+        eqMidGain: 0,
+        eqHighGain: 0,
+        reverbSend: 0.1,
+        automationLanes: [],
+      });
+      setProject({ ...project, tracks: updatedTracks });
+    }
+
+    handleDropSampleOnTrack(targetTrackId, currentTime, asset);
   };
 
   const handleImportAndAnalyzeFile = (asset: SourceAsset, buffer: AudioBuffer) => {
@@ -1083,6 +1171,7 @@ export const App: React.FC = () => {
           <MediaSidebar
             sources={project.sources}
             onDragStartSample={handleDragStartSample}
+            onAddSampleToTimeline={handleAddSampleToTimeline}
             onAddSource={handleImportAndAnalyzeFile}
             onPreviewSample={(id) => engine.previewAudio(id)}
             onStopPreview={() => engine.stopPreviewAudio()}
