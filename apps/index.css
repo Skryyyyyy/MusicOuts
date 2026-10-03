@@ -1,0 +1,54 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --pro-bg: #0D0E11;
+    --pro-panel: #15171C;
+    --pro-surface: #1E2028;
+    --pro-border: #282C37;
+    --pro-accent: #3B82F6;
+  }
+
+  body {
+    background-color: var(--pro-bg);
+    color: #F3F4F6;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", system-ui, sans-serif;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+}
+
+/* Apple Pro Dark Glass & Vibrancy */
+.glass-panel {
+  background: rgba(21, 23, 28, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.glass-toolbar {
+  background: rgba(15, 17, 22, 0.9);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* Custom Pro Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
