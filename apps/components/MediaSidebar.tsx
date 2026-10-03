@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, memo } from 'react';
 import { SourceAsset, SongSection } from '../../core/project-model/types';
 import {
   Folder,
@@ -39,7 +39,7 @@ interface MediaSampleItem {
   isFavorite?: boolean;
 }
 
-export const MediaSidebar: React.FC<MediaSidebarProps> = ({
+const MediaSidebarComponent: React.FC<MediaSidebarProps> = ({
   sources,
   onDragStartSample,
   onAddSampleToTimeline,
@@ -299,3 +299,5 @@ export const MediaSidebar: React.FC<MediaSidebarProps> = ({
     </aside>
   );
 };
+
+export const MediaSidebar = memo(MediaSidebarComponent);

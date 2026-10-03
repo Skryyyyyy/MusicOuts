@@ -380,25 +380,41 @@ export class AudioEngine {
     if (this.animFrameId) return;
 
     const dataArray = new Uint8Array(256);
+    let lastMeterTick = 0;
+    let lastTimeTick = 0;
 
-    const update = () => {
-      if (this.masterAnalyser && this.isPlayingState) {
-        this.masterAnalyser.getByteFrequencyData(dataArray);
+    const update = (now: number) => {
+      if (this.isPlayingState) {
+        // Smooth ~30 FPS meter updates (avoids React render queue clogging)
+        if (this.masterAnalyser && now - lastMeterTick >= 33) {
+          lastMeterTick = now;
+          this.masterAnalyser.getByteFrequencyData(dataArray);
 
-        let sum = 0;
-        for (let i = 0; i < dataArray.length; i++) {
-          sum += dataArray[i];
+          let sum = 0;
+          for (let i = 0; i < dataArray.length; i++) {
+            sum += dataArray[i];
+          }
+          const avg = sum / dataArray.length;
+          const normalized = Math.min(1.0, avg / 128);
+
+          // Approximate LUFS and stereo peak
+          const peakL = normalized;
+          const peakR = Math.max(0, normalized * (0.95 + Math.random() * 0.1));
+          const lufsEstimate = -70 + normalized * 56; // range -70dB to -14dB
+
+          for (let i = 0; i < this.meterListeners.length; i++) {
+            this.meterListeners[i]({ left: peakL, right: peakR, lufsEstimate });
+          }
         }
-        const avg = sum / dataArray.length;
-        const normalized = Math.min(1.0, avg / 128);
 
-        // Approximate LUFS and stereo peak
-        const peakL = normalized;
-        const peakR = Math.max(0, normalized * (0.95 + Math.random() * 0.1));
-        const lufsEstimate = -70 + normalized * 56; // range -70dB to -14dB
-
-        this.meterListeners.forEach((l) => l({ left: peakL, right: peakR, lufsEstimate }));
-        this.timeListeners.forEach((l) => l(this.getCurrentTime()));
+        // Smooth ~30 FPS time updates for React state
+        if (now - lastTimeTick >= 33) {
+          lastTimeTick = now;
+          const currTime = this.getCurrentTime();
+          for (let i = 0; i < this.timeListeners.length; i++) {
+            this.timeListeners[i](currTime);
+          }
+        }
       }
       this.animFrameId = requestAnimationFrame(update);
     };

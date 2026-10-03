@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, memo } from 'react';
 import { Project, Clip, Track, KeyframeLane, KeyframePoint, CurveType } from '../../core/project-model/types';
 import { evaluateKeyframe } from '../../core/dsp/keyframes';
 import {
@@ -22,7 +22,7 @@ interface InspectorProps {
   onToggleCollapse?: () => void;
 }
 
-export const Inspector: React.FC<InspectorProps> = ({
+const InspectorComponent: React.FC<InspectorProps> = ({
   project,
   selectedClip,
   selectedTrack,
@@ -783,3 +783,5 @@ export const Inspector: React.FC<InspectorProps> = ({
     </aside>
   );
 };
+
+export const Inspector = memo(InspectorComponent);

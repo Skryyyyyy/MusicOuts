@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, memo } from 'react';
 import {
   Menu,
   Folder,
@@ -106,7 +106,7 @@ interface TopBarProps {
   onReverseSelectedClip: () => void;
 }
 
-export const TopBar: React.FC<TopBarProps> = ({
+const TopBarComponent: React.FC<TopBarProps> = ({
   projectTitle,
   bpm,
   timeSignature,
@@ -719,3 +719,5 @@ export const TopBar: React.FC<TopBarProps> = ({
     </header>
   );
 };
+
+export const TopBar = memo(TopBarComponent);

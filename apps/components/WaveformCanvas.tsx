@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, memo } from 'react';
 import { SourceAsset, Fade } from '../../core/project-model/types';
 import { PeakPyramid, selectPyramidLevel, generatePeakPyramid } from '../../core/analysis/waveform';
 
@@ -12,7 +12,7 @@ interface WaveformCanvasProps {
   isSelected?: boolean;
 }
 
-export const WaveformCanvas: React.FC<WaveformCanvasProps> = ({
+const WaveformCanvasComponent: React.FC<WaveformCanvasProps> = ({
   sourceAsset,
   sourceIn,
   sourceOut,
@@ -27,12 +27,14 @@ export const WaveformCanvas: React.FC<WaveformCanvasProps> = ({
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { alpha: true });
     if (!ctx) return;
 
     const dpr = window.devicePixelRatio || 1;
-    const width = canvas.clientWidth || 200;
-    const height = canvas.clientHeight || 48;
+    const width = Math.floor(canvas.clientWidth || 200);
+    const height = Math.floor(canvas.clientHeight || 48);
+
+    if (width <= 0 || height <= 0) return;
 
     if (canvas.width !== width * dpr || canvas.height !== height * dpr) {
       canvas.width = width * dpr;
@@ -43,7 +45,7 @@ export const WaveformCanvas: React.FC<WaveformCanvasProps> = ({
     ctx.scale(dpr, dpr);
     ctx.clearRect(0, 0, width, height);
 
-    const duration = Math.max(0.1, sourceOut - sourceIn);
+    const duration = Math.max(0.05, sourceOut - sourceIn);
     const centerY = height / 2;
     const halfHeight = (height / 2) * 0.88;
 
@@ -64,6 +66,9 @@ export const WaveformCanvas: React.FC<WaveformCanvasProps> = ({
       }
     }
 
+    // High performance batched path drawing (single GPU draw call instead of hundreds of fillRect calls)
+    ctx.beginPath();
+
     if (pyramids && Object.keys(pyramids).length > 0) {
       const resolutions = Object.keys(pyramids).map(Number).sort((a, b) => a - b);
       const pyramid: PeakPyramid = {
@@ -83,7 +88,9 @@ export const WaveformCanvas: React.FC<WaveformCanvasProps> = ({
       const startSample = Math.floor(sourceIn * sampleRate);
       const totalSamples = Math.floor(duration * sampleRate);
 
-      for (let x = 0; x < width; x++) {
+      const step = Math.max(1, Math.floor(width / 300));
+
+      for (let x = 0; x < width; x += step) {
         const sampleOffset = startSample + Math.floor((x / width) * totalSamples);
         const binIdx = Math.floor(sampleOffset / samplesPerBin);
 
@@ -112,12 +119,13 @@ export const WaveformCanvas: React.FC<WaveformCanvasProps> = ({
           const bottomY = centerY - Math.min(-0.08, minVal * fadeMultiplier) * halfHeight;
           const barHeight = Math.max(1.8, bottomY - topY);
 
-          ctx.fillRect(x, topY, 1.2, barHeight);
+          ctx.rect(x, topY, Math.max(1.2, step - 0.2), barHeight);
         }
       }
     } else {
-      // High-definition fallback waveform shape based on audio envelope
-      for (let x = 0; x < width; x++) {
+      // High-definition fallback waveform envelope
+      const step = Math.max(1, Math.floor(width / 240));
+      for (let x = 0; x < width; x += step) {
         const norm = x / width;
         const wave =
           Math.abs(Math.sin(norm * 32)) * 0.45 +
@@ -126,9 +134,11 @@ export const WaveformCanvas: React.FC<WaveformCanvasProps> = ({
           0.05;
         const barHeight = Math.max(2, wave * halfHeight * 2);
         const topY = centerY - barHeight / 2;
-        ctx.fillRect(x, topY, 1.2, barHeight);
+        ctx.rect(x, topY, Math.max(1.2, step - 0.2), barHeight);
       }
     }
+
+    ctx.fill();
 
     // Zero-crossing center guide
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
@@ -149,3 +159,15 @@ export const WaveformCanvas: React.FC<WaveformCanvasProps> = ({
     />
   );
 };
+
+export const WaveformCanvas = memo(WaveformCanvasComponent, (prev, next) => {
+  return (
+    prev.sourceAsset === next.sourceAsset &&
+    prev.sourceIn === next.sourceIn &&
+    prev.sourceOut === next.sourceOut &&
+    prev.color === next.color &&
+    prev.isSelected === next.isSelected &&
+    prev.fadeIn?.duration === next.fadeIn?.duration &&
+    prev.fadeOut?.duration === next.fadeOut?.duration
+  );
+});

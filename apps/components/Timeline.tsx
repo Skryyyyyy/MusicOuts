@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, memo } from 'react';
 import { Project, Clip, Track, SourceAsset, SongSection } from '../../core/project-model/types';
 import { WaveformCanvas } from './WaveformCanvas';
 import {
@@ -43,7 +43,7 @@ interface TimelineProps {
   onOpenURLImport?: () => void;
 }
 
-export const Timeline: React.FC<TimelineProps> = ({
+const TimelineComponent: React.FC<TimelineProps> = ({
   project,
   currentTime,
   selectedClipId,
@@ -728,8 +728,8 @@ export const Timeline: React.FC<TimelineProps> = ({
 
             {/* Glowing Red Playhead Line */}
             <div
-              className="absolute top-0 bottom-0 pointer-events-none z-40 transition-transform duration-75"
-              style={{ transform: `translateX(${timeToPx(currentTime)}px)` }}
+              className="absolute top-0 bottom-0 pointer-events-none z-40 will-change-transform"
+              style={{ transform: `translate3d(${timeToPx(currentTime)}px, 0, 0)` }}
             >
               <div className="w-0.5 h-full bg-[#FF1744] shadow-[0_0_10px_#FF1744] relative">
                 <div className="w-3.5 h-3.5 bg-[#FF1744] rounded-full absolute -top-1.5 -left-[6px] shadow-[0_0_8px_#FF1744] border border-white/50" />
@@ -741,3 +741,5 @@ export const Timeline: React.FC<TimelineProps> = ({
     </section>
   );
 };
+
+export const Timeline = memo(TimelineComponent);
