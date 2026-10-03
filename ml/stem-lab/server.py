@@ -29,6 +29,13 @@ try:
 except ImportError:
     HAS_YT_DLP = False
 
+# Try importing whisper
+try:
+    import whisper
+    HAS_WHISPER = True
+except ImportError:
+    HAS_WHISPER = False
+
 # Import AI Pipeline Hub
 sys.path.insert(0, str(Path(__file__).parent.parent))
 try:
